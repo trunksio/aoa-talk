@@ -1,0 +1,124 @@
+# OCR Agent Capability Manifest
+# Declares capabilities and metadata for automatic registration with Registry service
+
+agent:
+  agent_id: "ocr-001"
+  name: "DeepSeek-OCR CV Agent"
+  description: "Extracts structured data from scanned image-based CVs, documents with charts and graphs using advanced OCR technology"
+  agent_type: "ocr"
+  version: "1.0.0"
+  status: "active"
+
+  capabilities:
+    - name: "extract_from_scanned_cv"
+      description: "Extract text and structured data from scanned CV documents using DeepSeek-OCR"
+      input_types:
+        - "application/pdf"
+        - "image/png"
+        - "image/jpeg"
+        - "image/tiff"
+      output_types:
+        - "application/json"
+        - "text/plain"
+      parameters:
+        max_file_size_mb: 50
+        supported_languages:
+          - "en"
+          - "es"
+          - "fr"
+          - "de"
+        ocr_mode: "markdown"
+      metadata:
+        performance:
+          avg_processing_time_sec: 15
+          max_pages: 20
+        quality:
+          min_text_length: 50
+          confidence_threshold: 0.7
+
+    - name: "extract_contact_information"
+      description: "Extract contact details (name, email, phone, location, LinkedIn, GitHub) from CV text"
+      input_types:
+        - "text/plain"
+      output_types:
+        - "application/json"
+      parameters:
+        extraction_method: "llm_based"
+        llm_model: "llama3.2"
+      metadata:
+        fields_extracted:
+          - "name"
+          - "email"
+          - "phone"
+          - "location"
+          - "linkedin"
+          - "github"
+
+    - name: "extract_work_experience"
+      description: "Extract work experience entries with job titles, companies, dates, and descriptions"
+      input_types:
+        - "text/plain"
+      output_types:
+        - "application/json"
+      parameters:
+        extraction_method: "llm_based"
+        llm_model: "llama3.2"
+      metadata:
+        fields_extracted:
+          - "title"
+          - "company"
+          - "start_date"
+          - "end_date"
+          - "location"
+          - "description"
+
+    - name: "extract_education"
+      description: "Extract education history including degrees, institutions, fields of study, and dates"
+      input_types:
+        - "text/plain"
+      output_types:
+        - "application/json"
+      parameters:
+        extraction_method: "llm_based"
+        llm_model: "llama3.2"
+      metadata:
+        fields_extracted:
+          - "degree"
+          - "institution"
+          - "field"
+          - "start_date"
+          - "end_date"
+          - "gpa"
+
+    - name: "extract_skills"
+      description: "Extract technical and soft skills from CV text"
+      input_types:
+        - "text/plain"
+      output_types:
+        - "application/json"
+      parameters:
+        extraction_method: "llm_based"
+        llm_model: "llama3.2"
+        categorize_skills: true
+      metadata:
+        skill_categories:
+          - "technical"
+          - "programming_languages"
+          - "frameworks"
+          - "tools"
+          - "soft_skills"
+
+  metadata:
+    author: "AOA-Talk Team"
+    documentation_url: "https://github.com/trunksio/aoa-talk/tree/main/agents/ocr"
+    gpu_required: true
+    gpu_type: "NVIDIA CUDA"
+    dependencies:
+      - "deepseek-ocr"
+      - "pytorch"
+      - "transformers"
+      - "ollama"
+    resource_requirements:
+      min_memory_gb: 8
+      min_gpu_memory_gb: 6
+      recommended_gpu: "NVIDIA GB10"

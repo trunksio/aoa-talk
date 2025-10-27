@@ -50,6 +50,10 @@ RUN pip3 install --no-cache-dir --break-system-packages \
 COPY shared/python /shared
 RUN pip install --no-cache-dir --break-system-packages -e /shared
 
+# Copy and install agents/common package (for manifest and registration)
+COPY agents/common /agents_common
+RUN pip install --no-cache-dir --break-system-packages -r /agents_common/requirements.txt
+
 # Copy OCR agent code
 COPY agents/ocr/ /app/
 
@@ -68,11 +72,25 @@ RUN python3 -c "from transformers import AutoModel, AutoProcessor; \
     print('Model downloaded successfully')" || echo "Model download will happen at runtime (this is OK)"
 
 # Set Python path
-ENV PYTHONPATH="/shared:/app:/app/../parser:${PYTHONPATH}"
+ENV PYTHONPATH="/shared:/app:/app/../parser:/agents_common:${PYTHONPATH}"
+
+# Set environment variables for registration
+ENV MANIFEST_PATH="/app/manifest.yaml"
+ENV REGISTRY_URL="http://registry:8000"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import torch; import sys; sys.exit(0 if torch.cuda.is_available() else 1)"
 
-# Run agent
-CMD ["python", "main.py"]
+# Create startup script that registers agent then starts main process
+RUN echo '#!/bin/bash\n\
+set -e\n\
+echo "[INFO] Starting OCR Agent..."\n\
+echo "[INFO] Registering agent with Registry service..."\n\
+python3 /agents_common/register_on_start.py $MANIFEST_PATH || echo "[WARNING] Registration failed, continuing anyway"\n\
+echo "[INFO] Starting agent worker..."\n\
+exec python3 main.py\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Run agent with registration
+CMD ["/app/start.sh"]

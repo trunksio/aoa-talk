@@ -1,0 +1,109 @@
+# Parser Agent Capability Manifest
+# Declares capabilities and metadata for automatic registration with Registry service
+
+agent:
+  agent_id: "parser-001"
+  name: "LLM-Based CV Parser Agent"
+  description: "Parses text-based CVs and extracts structured information using LLM-based extraction"
+  agent_type: "parser"
+  version: "1.0.0"
+  status: "active"
+
+  capabilities:
+    - name: "extract_from_text_cv"
+      description: "Extract structured data from text-based CV documents using LLM"
+      input_types:
+        - "application/pdf"
+        - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        - "text/plain"
+      output_types:
+        - "application/json"
+      parameters:
+        llm_model: "llama3.2"
+        extraction_method: "llm_based"
+        max_file_size_mb: 20
+      metadata:
+        performance:
+          avg_processing_time_sec: 8
+          max_pages: 15
+        quality:
+          min_text_length: 100
+
+    - name: "extract_contact_information"
+      description: "Extract contact details from CV text"
+      input_types:
+        - "text/plain"
+      output_types:
+        - "application/json"
+      parameters:
+        extraction_method: "llm_based"
+        llm_model: "llama3.2"
+      metadata:
+        fields_extracted:
+          - "name"
+          - "email"
+          - "phone"
+          - "location"
+          - "linkedin"
+          - "github"
+
+    - name: "extract_work_experience"
+      description: "Extract work experience with structured fields"
+      input_types:
+        - "text/plain"
+      output_types:
+        - "application/json"
+      parameters:
+        extraction_method: "llm_based"
+        llm_model: "llama3.2"
+      metadata:
+        fields_extracted:
+          - "title"
+          - "company"
+          - "start_date"
+          - "end_date"
+          - "location"
+          - "description"
+
+    - name: "extract_education"
+      description: "Extract education history"
+      input_types:
+        - "text/plain"
+      output_types:
+        - "application/json"
+      parameters:
+        extraction_method: "llm_based"
+        llm_model: "llama3.2"
+      metadata:
+        fields_extracted:
+          - "degree"
+          - "institution"
+          - "field"
+          - "start_date"
+          - "end_date"
+          - "gpa"
+
+    - name: "extract_skills"
+      description: "Extract and categorize skills"
+      input_types:
+        - "text/plain"
+      output_types:
+        - "application/json"
+      parameters:
+        extraction_method: "llm_based"
+        llm_model: "llama3.2"
+      metadata:
+        skill_categories:
+          - "technical"
+          - "soft_skills"
+
+  metadata:
+    author: "AOA-Talk Team"
+    documentation_url: "https://github.com/trunksio/aoa-talk/tree/main/agents/parser"
+    gpu_required: false
+    dependencies:
+      - "pypdf2"
+      - "python-docx"
+      - "ollama"
+    resource_requirements:
+      min_memory_gb: 4
