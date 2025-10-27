@@ -6,6 +6,7 @@ import os
 import time
 import uuid
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Dict, Optional
 from threading import Thread
 import signal
@@ -496,8 +497,6 @@ def process_agent_task(task_dict: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dictionary representation of AgentTaskResult
     """
-    global _agent_instance
-
     if _agent_instance is None:
         raise RuntimeError(
             "No agent instance registered. "
