@@ -1,0 +1,31 @@
+# OCR Agent Requirements
+# GPU-accelerated OCR using DeepSeek-OCR
+
+# DeepSeek-OCR and ML dependencies
+# PyTorch 2.9.0 with CUDA 13.0 support for ARM64 (installed in Dockerfile)
+transformers>=4.40.0
+accelerate>=0.28.0
+sentencepiece>=0.2.0
+protobuf>=4.25.0
+
+# DeepSeek-OCR specific dependencies
+addict>=2.4.0
+matplotlib>=3.7.0
+easydict>=1.10
+einops>=0.7.0
+
+# Image processing
+Pillow>=10.2.0
+pdf2image>=1.17.0
+pypdfium2>=4.26.0
+
+# Document processing
+pdfplumber>=0.11.0
+pypdf>=4.0.0
+
+# Instructor for structured LLM outputs (reuse from parser)
+instructor>=1.0.0
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0

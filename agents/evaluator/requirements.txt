@@ -1,0 +1,10 @@
+# Evaluator Agent Dependencies
+
+# JSON parsing and validation
+pydantic>=2.7.0
+
+# Token counting for context management
+tiktoken==0.5.2
+
+# Utilities
+python-dateutil==2.9.0

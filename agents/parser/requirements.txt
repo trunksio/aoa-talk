@@ -1,0 +1,25 @@
+# Parser Agent Dependencies
+
+# PDF parsing
+pdfplumber==0.10.3
+pypdf==3.17.4
+
+# DOCX parsing
+python-docx==1.1.0
+
+# File type detection
+python-magic==0.4.27
+
+# NLP and entity extraction
+spacy==3.7.2
+# Download spacy model: python -m spacy download en_core_web_sm
+
+# Date parsing
+dateparser==1.2.0
+
+# Contact info extraction
+phonenumbers==8.13.26
+email-validator==2.1.0
+
+# Utilities
+python-dateutil==2.9.0

@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: aoa_postgres
+    environment:
+      POSTGRES_USER: aoa
+      POSTGRES_PASSWORD: aoa
+      POSTGRES_DB: aoa
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aoa"]
+      interval: 5s
+      retries: 5
+
+  age:
+    image: bitnine/agensgraph:latest
+    container_name: aoa_age
+    environment:
+      POSTGRES_USER: aoa
+      POSTGRES_PASSWORD: aoa
+    ports:
+      - "5455:5432"
+    volumes:
+      - agedata:/var/lib/postgresql/data
+
+  registry:
+    build: ./backend/registry
+    command: uvicorn backend.registry.main:app --host 0.0.0.0 --port 8001 --reload
+    ports:
+      - "8001:8001"
+    depends_on:
+      - postgres
+      - age
+
+  planner:
+    build: ./backend/planner
+    command: uvicorn backend.planner.main:app --host 0.0.0.0 --port 8002 --reload
+    ports:
+      - "8002:8002"
+    depends_on:
+      - registry
+
+  orchestrator:
+    build: ./backend/orchestrator
+    command: uvicorn backend.orchestrator.main:app --host 0.0.0.0 --port 8003 --reload
+    ports:
+      - "8003:8003"
+    depends_on:
+      - planner
+
+volumes:
+  pgdata:
+  agedata:

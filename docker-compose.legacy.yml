@@ -1,0 +1,413 @@
+services:
+  # PostgreSQL with pgvector for semantic search
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: cavia-postgres
+    environment:
+      POSTGRES_DB: cavia
+      POSTGRES_USER: cavia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-caviadev123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cavia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cavia-network
+
+  # Redis for RQ (task queue)
+  redis:
+    image: redis:7-alpine
+    container_name: cavia-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cavia-network
+
+  # MinIO for CV storage
+  minio:
+    image: minio/minio:latest
+    container_name: cavia-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cavia-network
+
+  # MinIO client for bucket initialization
+  minio-init:
+    image: minio/mc:latest
+    container_name: cavia-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set minio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin123};
+      mc mb --ignore-existing minio/cvs-raw;
+      mc mb --ignore-existing minio/cvs-processed;
+      mc mb --ignore-existing minio/agent-artifacts;
+      mc policy set download minio/cvs-processed;
+      echo 'MinIO buckets initialized';
+      "
+    networks:
+      - cavia-network
+
+  # Agent Registry Service
+  agent-registry:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.registry
+    container_name: cavia-agent-registry
+    environment:
+      DATABASE_URL: postgresql://cavia:${POSTGRES_PASSWORD:-caviadev123}@postgres:5432/cavia
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8001:8000"
+    volumes:
+      - chromadb-data:/data/chromadb
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
+    networks:
+      - cavia-network
+
+  # Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cavia-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - cavia-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  # RQ Dashboard (optional, for monitoring queues)
+  rq-dashboard:
+    build:
+      context: .
+      dockerfile: workers/rq_dashboard/Dockerfile
+    image: cavia-rq-dashboard:latest
+    container_name: cavia-rq-dashboard
+    environment:
+      RQ_DASHBOARD_REDIS_URL: redis://redis:6379/0
+    ports:
+      - "9181:9181"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cavia-network
+    restart: unless-stopped
+
+  # Backend API Service
+  backend-api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.api
+    container_name: cavia-backend-api
+    environment:
+      # Infrastructure
+      DATABASE_URL: postgresql://cavia:${POSTGRES_PASSWORD:-caviadev123}@postgres:5432/cavia
+      REDIS_URL: redis://redis:6379/0
+
+      # MinIO
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_SECURE: "false"
+
+      # Logging
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      parser-agent:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    networks:
+      - cavia-network
+
+  # Frontend Web Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cavia-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    networks:
+      - cavia-network
+
+  # ============================================================================
+  # AGENTIC UNITS - CV Processing Agents
+  # ============================================================================
+
+  # Parser Agent - Extracts structured data from CVs
+  parser-agent:
+    image: cavia-parser:latest
+    container_name: cavia-parser-agent
+    environment:
+      # Agent Config
+      AGENT_ID: parser-001
+
+      # Infrastructure
+      DATABASE_URL: postgresql://cavia:${POSTGRES_PASSWORD:-caviadev123}@postgres:5432/cavia
+      REDIS_URL: redis://redis:6379/0
+
+      # MinIO
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_SECURE: "false"
+
+      # Fix tokenizer fork issue
+      TOKENIZERS_PARALLELISM: "false"
+
+      # Logging
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      agent-registry:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - cavia-network
+
+  # Evaluator Agent - LLM-based evaluation with internal loop for all criteria
+  evaluator-agent:
+    image: cavia-evaluator:latest
+    container_name: cavia-evaluator-agent
+    environment:
+      # Agent Config
+      AGENT_ID: evaluator-001
+
+      # Infrastructure
+      DATABASE_URL: postgresql://cavia:${POSTGRES_PASSWORD:-caviadev123}@postgres:5432/cavia
+      REDIS_URL: redis://redis:6379/0
+
+      # Ollama LLM
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+
+      # Logging
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      agent-registry:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - cavia-network
+
+  # Reporter Agent - Generates evaluation reports
+  reporter-agent:
+    image: cavia-reporter:latest
+    container_name: cavia-reporter-agent
+    environment:
+      # Agent Config
+      AGENT_ID: reporter-001
+
+      # Infrastructure
+      DATABASE_URL: postgresql://cavia:${POSTGRES_PASSWORD:-caviadev123}@postgres:5432/cavia
+      REDIS_URL: redis://redis:6379/0
+
+      # MinIO
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_SECURE: "false"
+
+      # Ollama LLM
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+
+      # Logging
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      agent-registry:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - cavia-network
+
+  # OCR Agent - DeepSeek-OCR for scanned/image-based CVs
+  ocr-agent:
+    build:
+      context: .
+      dockerfile: agents/ocr/Dockerfile
+    image: cavia-ocr:latest
+    container_name: cavia-ocr-agent
+    environment:
+      # Agent Config
+      AGENT_ID: ocr-001
+
+      # Infrastructure
+      DATABASE_URL: postgresql://cavia:${POSTGRES_PASSWORD:-caviadev123}@postgres:5432/cavia
+      REDIS_URL: redis://redis:6379/0
+
+      # MinIO
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_SECURE: "false"
+
+      # Ollama LLM (for structured extraction)
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+
+      # GPU/CUDA settings
+      CUDA_VISIBLE_DEVICES: "0"
+      TOKENIZERS_PARALLELISM: "false"
+
+      # Logging
+      LOG_LEVEL: INFO
+    volumes:
+      - ocr-models:/root/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      agent-registry:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - cavia-network
+
+  # ============================================================================
+  # NON-AGENTIC UNITS - Cross-boundary workers
+  # ============================================================================
+
+  # DB Writer Worker - Updates database with final results (non-agentic)
+  db-writer:
+    image: cavia-db-writer:latest
+    container_name: cavia-db-writer
+    environment:
+      # Infrastructure
+      DATABASE_URL: postgresql://cavia:${POSTGRES_PASSWORD:-caviadev123}@postgres:5432/cavia
+      REDIS_URL: redis://redis:6379/0
+
+      # Logging
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - cavia-network
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  minio-data:
+    driver: local
+  chromadb-data:
+    driver: local
+  ollama-data:
+    driver: local
+  ocr-models:
+    driver: local
+
+networks:
+  cavia-network:
+    driver: bridge

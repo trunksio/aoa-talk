@@ -1,0 +1,41 @@
+# Base Dockerfile for CAVIA Agentic Units
+# This serves as a template for all agent containers
+
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy shared package
+COPY shared/python /shared
+RUN pip install --no-cache-dir -e /shared
+
+# Install common agent dependencies
+RUN pip install --no-cache-dir \
+    fastapi==0.109.0 \
+    uvicorn[standard]==0.27.0 \
+    httpx==0.26.0 \
+    python-multipart==0.0.6
+
+# Copy agent code (to be overridden in specific agent Dockerfiles)
+COPY agents/__agent_type__/ /app/
+
+# Install agent-specific requirements if they exist
+RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
+
+# Expose REST API port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Default command (to be overridden)
+CMD ["python", "main.py"]

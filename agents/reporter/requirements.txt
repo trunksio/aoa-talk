@@ -1,0 +1,10 @@
+# Reporter Agent Dependencies
+
+# JSON parsing and validation
+pydantic>=2.7.0
+
+# Markdown report generation
+markdown==3.5.1
+
+# Utilities
+python-dateutil==2.9.0
