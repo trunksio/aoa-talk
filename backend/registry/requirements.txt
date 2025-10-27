@@ -1,0 +1,22 @@
+# FastAPI and web server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# Database
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+pgvector==0.2.3
+alembic==1.12.1
+
+# Apache AGE support (for future graph queries)
+# age-py==0.0.1  # Uncomment when ready to integrate Apache AGE
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.1
+
+# Code quality
+black==23.11.0
+flake8==6.1.0
