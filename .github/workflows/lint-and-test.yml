@@ -1,0 +1,65 @@
+name: Lint and Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install linting and testing tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black pytest pytest-asyncio
+
+    - name: Install shared dependencies
+      run: |
+        if [ -f shared/python/setup.py ]; then
+          pip install -e shared/python/
+        fi
+
+    - name: Install agent dependencies
+      run: |
+        # Install dependencies for each agent (excluding heavy ML dependencies for CI)
+        for req in agents/*/requirements.txt; do
+          if [ -f "$req" ]; then
+            echo "Installing dependencies from $req"
+            # Skip PyTorch and heavy ML dependencies in CI
+            grep -v -E "^torch|^transformers|^accelerate" "$req" | grep -v "^#" | grep -v "^$" | xargs -r pip install || true
+          fi
+        done
+
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.git,__pycache__,venv,env
+        # Exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=.git,__pycache__,venv,env
+
+    - name: Check code formatting with black
+      run: |
+        black --check --diff --exclude="/(\.git|__pycache__|venv|env)/" .
+      continue-on-error: true
+
+    - name: Run tests
+      run: |
+        # Run pytest for all test files
+        pytest --verbose --tb=short
+      env:
+        PYTHONPATH: ${{ github.workspace }}/shared/python:$PYTHONPATH
