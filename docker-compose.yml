@@ -1,6 +1,8 @@
-version: '3.9'
 
 services:
+  # ---------------------------------------------------------------------------
+  # Postgres + pgvector
+  # ---------------------------------------------------------------------------
   postgres:
     image: ankane/pgvector:latest
     container_name: aoa_postgres
@@ -17,6 +19,9 @@ services:
       interval: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Apache AGE (graph memory)
+  # ---------------------------------------------------------------------------
   age:
     image: bitnine/agensgraph:latest
     container_name: aoa_age
@@ -28,30 +33,143 @@ services:
     volumes:
       - agedata:/var/lib/postgresql/data
 
+  # ---------------------------------------------------------------------------
+  # Registry Service (Discovery Layer)
+  # ---------------------------------------------------------------------------
   registry:
-    build: ./backend/registry
-    command: uvicorn backend.registry.main:app --host 0.0.0.0 --port 8001 --reload
+    build:
+      context: .
+      dockerfile: backend/registry/Dockerfile
+    container_name: aoa_registry
+    environment:
+      DATABASE_URL: postgresql://aoa:aoa@postgres:5432/aoa
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
       - "8001:8001"
     depends_on:
-      - postgres
-      - age
+      postgres:
+        condition: service_healthy
+      age:
+        condition: service_started
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # ---------------------------------------------------------------------------
+  # OCR Agent (GPU-intensive, DeepSeek-OCR)
+  # ---------------------------------------------------------------------------
+  ocr:
+    build:
+      context: .
+      dockerfile: agents/ocr/Dockerfile
+    container_name: aoa_ocr
+    depends_on:
+      registry:
+        condition: service_healthy
+    environment:
+      MANIFEST_PATH: /app/manifest.yaml
+      REGISTRY_URL: http://registry:8001
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://registry:8001/health || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Parser Agent (LLM-based CV Parser)
+  # ---------------------------------------------------------------------------
+  parser:
+    build:
+      context: .
+      dockerfile: agents/parser/Dockerfile
+    container_name: aoa_parser
+    depends_on:
+      registry:
+        condition: service_healthy
+    environment:
+      MANIFEST_PATH: /app/manifest.yaml
+      REGISTRY_URL: http://registry:8001
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://registry:8001/health || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Planner (Intent → Plan)
+  # ---------------------------------------------------------------------------
   planner:
-    build: ./backend/planner
-    command: uvicorn backend.planner.main:app --host 0.0.0.0 --port 8002 --reload
+    build:
+      context: .
+      dockerfile: backend/planner/Dockerfile
+    container_name: aoa_planner
     ports:
       - "8002:8002"
     depends_on:
-      - registry
+      registry:
+        condition: service_healthy
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
+  # ---------------------------------------------------------------------------
+  # Orchestrator (Plan → Execute)
+  # ---------------------------------------------------------------------------
   orchestrator:
-    build: ./backend/orchestrator
-    command: uvicorn backend.orchestrator.main:app --host 0.0.0.0 --port 8003 --reload
+    build:
+      context: .
+      dockerfile: backend/orchestrator/Dockerfile
+    container_name: aoa_orchestrator
     ports:
       - "8003:8003"
     depends_on:
-      - planner
+      planner:
+        condition: service_started
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 volumes:
   pgdata:
