@@ -7,13 +7,13 @@ import time
 import json
 from typing import Any, Dict
 
-# Add shared package to path
-sys.path.insert(0, "/shared")
+# Add agents_common package to path
+sys.path.insert(0, "/agents_common")
 
 import instructor
 from openai import OpenAI
 
-from cavia_common import (
+from agents_common import (
     BaseAgent,
     AgentTask,
     AgentTaskResult,
