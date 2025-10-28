@@ -26,7 +26,7 @@ class LLMCVExtractor:
         Initialize with Ollama client
 
         Args:
-            ollama_client: Instance of OllamaClient from cavia_common
+            ollama_client: Instance of OllamaClient from agents_common
         """
         self.ollama = ollama_client
         self.logger = logger

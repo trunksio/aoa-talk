@@ -7,10 +7,10 @@ This file demonstrates how to create a custom agent using the BaseAgent class.
 import sys
 from typing import Any, Dict
 
-# Add shared package to path
-sys.path.insert(0, "/shared")
+# Add agents_common package to path
+sys.path.insert(0, "/agents_common")
 
-from cavia_common import (
+from agents_common import (
     BaseAgent,
     AgentTask,
     AgentTaskResult,

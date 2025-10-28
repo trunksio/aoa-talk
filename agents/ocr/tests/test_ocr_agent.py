@@ -11,11 +11,11 @@ import os
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
-# Add shared package to path
-sys.path.insert(0, "/shared")
+# Add agents_common package to path
+sys.path.insert(0, "/agents_common")
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cavia_common import AgentTask
+from agents_common import AgentTask
 
 
 class TestOCRAgent:

@@ -13,10 +13,10 @@ import tempfile
 from typing import Any, Dict
 from pathlib import Path
 
-# Add shared package to path
-sys.path.insert(0, "/shared")
+# Add agents_common package to path
+sys.path.insert(0, "/agents_common")
 
-from cavia_common import (
+from agents_common import (
     BaseAgent,
     AgentTask,
     AgentTaskResult,
@@ -58,7 +58,7 @@ class OCRAgent(BaseAgent):
         sys.path.insert(0, "/app/../parser")
         try:
             from parsers.llm_extractor import LLMCVExtractor
-            from cavia_common import get_ollama_client
+            from agents_common import get_ollama_client
 
             ollama_client = get_ollama_client()
             self.llm_extractor = LLMCVExtractor(ollama_client)
@@ -290,7 +290,7 @@ class OCRAgent(BaseAgent):
             extracted_data = self.llm_extractor.extract_all_sections(raw_text)
         else:
             # Inline extraction logic (fallback)
-            from cavia_common import get_ollama_client
+            from agents_common import get_ollama_client
             extracted_data = self._extract_with_ollama_inline(raw_text)
 
         # Build ParsedCV object from LLM-extracted data
@@ -323,7 +323,7 @@ class OCRAgent(BaseAgent):
     def _extract_with_ollama_inline(self, raw_text: str) -> dict:
         """Inline LLM extraction (fallback if LLMCVExtractor not available)"""
         import json
-        from cavia_common import get_ollama_client
+        from agents_common import get_ollama_client
 
         ollama = get_ollama_client()
 

@@ -9,10 +9,10 @@ import tempfile
 from typing import Any, Dict
 from pathlib import Path
 
-# Add shared package to path
-sys.path.insert(0, "/shared")
+# Add agents_common package to path
+sys.path.insert(0, "/agents_common")
 
-from cavia_common import (
+from agents_common import (
     BaseAgent,
     AgentTask,
     AgentTaskV2,
@@ -51,7 +51,7 @@ class ParserAgent(BaseAgent):
         self.docx_parser = DOCXParser()
 
         # Initialize LLM-based extractor (much more reliable than regex)
-        from cavia_common import get_ollama_client
+        from agents_common import get_ollama_client
         ollama_client = get_ollama_client()
         self.extractor = LLMCVExtractor(ollama_client)
 
