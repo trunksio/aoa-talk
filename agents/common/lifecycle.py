@@ -7,21 +7,30 @@ directly to manage its lifecycle.
 """
 
 import os
+import sys
 import time
 import uuid
 import signal
-import sys
 from typing import Any, Dict, Optional, Callable
 from threading import Thread
 from datetime import datetime
 
 from rq import Queue, Worker
 
-from .config import get_settings
-from .logging import get_logger, setup_logging
-from .models import AgentStatus, AgentTask, AgentTaskV2, AgentTaskResult, IntentValidation
-from .database import get_db_manager
-from .redis_client import get_redis_connection
+# Import from cavia_common (shared dependencies)
+sys.path.insert(0, "/shared")
+from cavia_common import (
+    get_settings,
+    get_logger,
+    setup_logging,
+    AgentStatus,
+    AgentTask,
+    AgentTaskV2,
+    AgentTaskResult,
+    IntentValidation,
+    get_db_manager,
+    get_redis_connection,
+)
 
 
 class AgentContext:
@@ -99,7 +108,7 @@ def register_agent(ctx: AgentContext) -> bool:
         # Call registry HTTP API - ChromaDB handles embeddings
         registry_url = getattr(ctx.settings, 'registry_url', "http://agent-registry:8000")
         response = requests.post(
-            f"{registry_url}/agents/register",
+            f"{registry_url}/register",
             json={
                 "agent_id": ctx.agent_id,
                 "agent_type": ctx.agent_type,
@@ -370,7 +379,7 @@ def discover_next_agent(ctx: AgentContext, capability_query: str) -> Optional[Di
         # Call registry's /discover endpoint
         registry_url = getattr(ctx.settings, 'registry_url', "http://agent-registry:8000")
         response = requests.post(
-            f"{registry_url}/agents/discover",
+            f"{registry_url}/discover",
             json={
                 "capability_query": capability_query,
                 "limit": 5,  # Get multiple results to filter
@@ -469,7 +478,7 @@ def enqueue_to_next_agent(
         # Enqueue to discovered agent's queue
         queue = Queue(next_agent['queue_name'], connection=ctx.redis_conn)
         job = queue.enqueue(
-            "cavia_common.base_agent.process_agent_task",
+            "agents_common.lifecycle.process_agent_task",
             task_dict,
             job_timeout='15m',
             result_ttl=3600,

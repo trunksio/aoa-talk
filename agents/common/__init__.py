@@ -4,18 +4,15 @@ Agents Common Package
 Shared utilities and models for Agentic Units (AUs).
 
 This package consolidates all common utilities needed by agents,
-including base classes, models, clients, and manifest management.
+including lifecycle management, models, and clients.
 """
 
-# Manifest and registration utilities (agents_common specific)
-from .manifest import AgentManifest, Capability, Agent, Embedding
-from .register_on_start import register_agent_from_manifest
-
-# Re-export all shared utilities from cavia_common
-# This allows agents to import everything from agents_common
 import sys
+
+# Add shared path for cavia_common dependencies
 sys.path.insert(0, "/shared")
 
+# Import from cavia_common (shared models and clients only)
 from cavia_common import (
     # Configuration
     Settings,
@@ -23,7 +20,7 @@ from cavia_common import (
     # Logging
     setup_logging,
     get_logger,
-    # Agent models
+    # Models
     AgentRegistration,
     AgentStatus,
     JobStatus,
@@ -35,12 +32,10 @@ from cavia_common import (
     AgentTask,
     AgentTaskV2,
     AgentTaskResult,
-    # Intent models
     IntentConstraint,
     IntentSuccessCriteria,
     StructuredIntent,
     IntentValidation,
-    # Evaluation models
     ReasoningStep,
     SubCriterion,
     StructuredEvaluation,
@@ -52,8 +47,6 @@ from cavia_common import (
     get_minio_client,
     OllamaClient,
     get_ollama_client,
-    # Base agent (DEPRECATED)
-    BaseAgent,
     # Workflows
     WorkflowTemplate,
     get_workflow_template,
@@ -62,8 +55,8 @@ from cavia_common import (
     WORKFLOW_TEMPLATES,
 )
 
-# Import explicit lifecycle management (NEW PATTERN)
-from cavia_common.agent_lifecycle import (
+# Import lifecycle management from local module
+from .lifecycle import (
     AgentContext,
     register_agent,
     start_heartbeat,
@@ -78,6 +71,10 @@ from cavia_common.agent_lifecycle import (
     register_agent_context,
     process_agent_task,
 )
+
+# Manifest and registration utilities (agents_common specific)
+from .manifest import AgentManifest, Capability, Agent, Embedding
+from .register_on_start import register_agent_from_manifest
 
 __version__ = "1.0.0"
 
@@ -123,9 +120,7 @@ __all__ = [
     "get_minio_client",
     "OllamaClient",
     "get_ollama_client",
-    # Base agent (DEPRECATED - use explicit lifecycle instead)
-    "BaseAgent",
-    # Explicit lifecycle management (NEW PATTERN)
+    # Lifecycle management (NEW PATTERN)
     "AgentContext",
     "register_agent",
     "start_heartbeat",

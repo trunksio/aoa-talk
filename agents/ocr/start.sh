@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Ensure PYTHONPATH is set correctly
+export PYTHONPATH="/app:${PYTHONPATH}"
+
 echo "[INFO] Starting OCR Agent..."
 echo "[INFO] Checking CUDA availability..."
 python3 -c "import torch; print('[CHECK] CUDA available:', torch.cuda.is_available())"
