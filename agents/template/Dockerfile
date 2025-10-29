@@ -14,11 +14,18 @@ WORKDIR /app
 COPY shared/python /shared
 RUN pip install --no-cache-dir -e /shared
 
+# Copy common agent utilities (manifest + registration)
+COPY agents/common /agents_common
+RUN pip install --no-cache-dir -r /agents_common/requirements.txt
+
 # Copy agent code
 COPY agents/template/ /app/
 
 # Install agent requirements
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Set Python path - /app first for agent imports
+ENV PYTHONPATH="/app:/agents_common:/shared:${PYTHONPATH}"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

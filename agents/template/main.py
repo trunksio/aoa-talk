@@ -1,17 +1,21 @@
 """
 Template for Agentic Unit main entry point.
 
-This file demonstrates how to create a custom agent using the BaseAgent class.
+This file demonstrates how to create a custom agent using explicit lifecycle management
+without inheriting from BaseAgent. This approach makes the agent lifecycle transparent
+and easier to understand.
 """
 
+import os
 import sys
+import time
 from typing import Any, Dict
 
-# Add agents_common package to path
-sys.path.insert(0, "/agents_common")
-
 from agents_common import (
-    BaseAgent,
+    AgentContext,
+    start_worker,
+)
+from cavia_common import (
     AgentTask,
     AgentTaskResult,
     get_logger,
@@ -23,21 +27,37 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-class TemplateAgent(BaseAgent):
+class TemplateAgent:
     """
     Template Agentic Unit.
 
     Customize this class to implement your specific agent logic.
+
+    No longer inherits from BaseAgent - uses explicit lifecycle management.
     """
 
     def __init__(self, agent_id: str = None):
-        super().__init__(agent_id)
-        # Add any agent-specific initialization here
-        self.logger.info("TemplateAgent initialized")
+        """
+        Initialize TemplateAgent with explicit setup.
 
-    def get_agent_type(self) -> str:
-        """Return the agent type identifier"""
-        return "template"  # Change this for your agent
+        Args:
+            agent_id: Optional agent identifier (auto-generated if not provided)
+        """
+        # Create agent context with explicit lifecycle management
+        self.ctx = AgentContext(
+            agent_id=agent_id or f"template-{os.urandom(4).hex()}",
+            agent_type="template",  # Change this for your agent
+            agent_info_provider=self.get_agent_info,
+            task_processor=self.process_task
+        )
+
+        # Setup logging from context
+        self.logger = self.ctx.logger
+
+        # Add any agent-specific initialization here
+        # For example: Initialize clients, models, etc.
+
+        self.logger.info("TemplateAgent initialized with explicit lifecycle", agent_id=self.ctx.agent_id)
 
     def get_agent_info(self) -> Dict[str, Any]:
         """Return agent metadata for registration"""
@@ -60,7 +80,6 @@ class TemplateAgent(BaseAgent):
         Returns:
             AgentTaskResult with status and result or error
         """
-        import time
         start_time = time.time()
 
         try:
@@ -80,7 +99,7 @@ class TemplateAgent(BaseAgent):
 
             return AgentTaskResult(
                 task_id=task.task_id,
-                agent_id=self.agent_id,
+                agent_id=self.ctx.agent_id,
                 status="success",
                 result=result,
                 execution_time=execution_time,
@@ -97,7 +116,7 @@ class TemplateAgent(BaseAgent):
 
             return AgentTaskResult(
                 task_id=task.task_id,
-                agent_id=self.agent_id,
+                agent_id=self.ctx.agent_id,
                 status="error",
                 error=str(e),
                 execution_time=execution_time,
@@ -113,28 +132,43 @@ class TemplateAgent(BaseAgent):
         return {
             "message": "Task processed successfully",
             "input": payload,
-            "agent_id": self.agent_id,
+            "agent_id": self.ctx.agent_id,
         }
 
 
 def main():
-    """Main entry point for the agent"""
-    import os
+    """
+    Main entry point for the agent.
 
-    # Get agent ID from environment or generate
+    Demonstrates explicit startup lifecycle:
+    1. Create agent instance
+    2. Start worker (registers, starts heartbeat, runs RQ loop)
+
+    This explicit approach makes it clear what happens during agent startup:
+    - Agent registration with agent-registry
+    - Heartbeat thread startup
+    - Signal handler setup
+    - RQ worker loop
+    """
+    # Get agent ID from environment or let it auto-generate
     agent_id = os.getenv("AGENT_ID")
 
-    # Create and start agent
+    # Create agent with explicit initialization
     agent = TemplateAgent(agent_id=agent_id)
 
     logger.info(
-        "Starting agent worker",
-        agent_id=agent.agent_id,
-        agent_type=agent.get_agent_type(),
+        "Starting agent worker with explicit lifecycle",
+        agent_id=agent.ctx.agent_id,
+        agent_type=agent.ctx.agent_type,
     )
 
-    # Start the RQ worker (blocking call)
-    agent.start_worker()
+    # Start the worker (explicit lifecycle management)
+    # This will:
+    # 1. Register agent with agent-registry
+    # 2. Start heartbeat thread
+    # 3. Setup signal handlers for graceful shutdown
+    # 4. Start RQ worker loop (blocking)
+    start_worker(agent.ctx)
 
 
 if __name__ == "__main__":

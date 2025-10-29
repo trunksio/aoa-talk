@@ -9,11 +9,15 @@ import tempfile
 from typing import Any, Dict
 from pathlib import Path
 
-# Add agents_common package to path
-sys.path.insert(0, "/agents_common")
-
 from agents_common import (
-    BaseAgent,
+    AgentContext,
+    start_worker,
+    validate_intent,
+    check_intent_drift,
+    update_intent_context,
+    enqueue_to_next_agent,
+)
+from cavia_common import (
     AgentTask,
     AgentTaskV2,
     AgentTaskResult,
@@ -31,7 +35,7 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-class ParserAgent(BaseAgent):
+class ParserAgent:
     """
     Agentic Unit for parsing CV files.
 
@@ -41,17 +45,34 @@ class ParserAgent(BaseAgent):
     - Extract text content
     - Extract structured data using LLM (contact, education, experience, skills, etc.)
     - Store ParsedCV in database and MinIO
+
+    No longer inherits from BaseAgent - uses explicit lifecycle management.
     """
 
     def __init__(self, agent_id: str = None):
-        super().__init__(agent_id)
+        """
+        Initialize ParserAgent with explicit setup.
+
+        Args:
+            agent_id: Optional agent identifier (auto-generated if not provided)
+        """
+        # Create agent context with explicit lifecycle management
+        self.ctx = AgentContext(
+            agent_id=agent_id or f"parser-{os.urandom(4).hex()}",
+            agent_type="parser",
+            agent_info_provider=self.get_agent_info,
+            task_processor=self.process_task
+        )
+
+        # Setup logging from context
+        self.logger = self.ctx.logger
 
         # Initialize parsers
         self.pdf_parser = PDFParser()
         self.docx_parser = DOCXParser()
 
         # Initialize LLM-based extractor (much more reliable than regex)
-        from agents_common import get_ollama_client
+        from cavia_common import get_ollama_client
         ollama_client = get_ollama_client()
         self.extractor = LLMCVExtractor(ollama_client)
 
@@ -59,11 +80,7 @@ class ParserAgent(BaseAgent):
         self.minio = get_minio_client()
         self.db = get_db_manager()
 
-        self.logger.info("ParserAgent initialized with LLM extractor", agent_id=self.agent_id)
-
-    def get_agent_type(self) -> str:
-        """Return the agent type"""
-        return "parser"
+        self.logger.info("ParserAgent initialized with explicit lifecycle", agent_id=self.ctx.agent_id)
 
     def get_agent_info(self) -> Dict[str, Any]:
         """Return agent metadata for registration"""
@@ -116,8 +133,8 @@ class ParserAgent(BaseAgent):
                     intent_goal=task.intent.goal if hasattr(task.intent, 'goal') else "N/A",
                 )
 
-                # Validate intent alignment
-                validation = self.validate_intent(task)
+                # Validate intent alignment (explicit call)
+                validation = validate_intent(self.ctx, task)
                 task.intent_validations.append(validation)
 
                 self.logger.info(
@@ -129,8 +146,8 @@ class ParserAgent(BaseAgent):
                     drift_score=validation.drift_score,
                 )
 
-                # DRIFT CHECK - Step 2: Check if we've drifted too far
-                if self.check_intent_drift(task, threshold=0.4):
+                # DRIFT CHECK - Step 2: Check if we've drifted too far (explicit call)
+                if check_intent_drift(task, threshold=0.4):
                     self.logger.warning(
                         "Intent drift detected! Stopping workflow to prevent busy work.",
                         task_id=task.task_id,
@@ -141,7 +158,7 @@ class ParserAgent(BaseAgent):
 
                     return AgentTaskResult(
                         task_id=task.task_id,
-                        agent_id=self.agent_id,
+                        agent_id=self.ctx.agent_id,
                         status="drift_detected",
                         error="Intent drift detected - workflow stopped to prevent misaligned work",
                         execution_time=time.time() - start_time,
@@ -190,15 +207,15 @@ class ParserAgent(BaseAgent):
 
                 execution_time = time.time() - start_time
 
-                # INTENT UPDATE - Step 3: Update intent context with results
+                # INTENT UPDATE - Step 3: Update intent context with results (explicit call)
                 if is_v2_task:
-                    self.update_intent_context(task, {
+                    update_intent_context(task, self.ctx, {
                         "parsing_completed": True,
                         "contact_extracted": len(parsed_cv.contact_info) > 0,
                         "education_count": len(parsed_cv.education),
                         "experience_count": len(parsed_cv.experience),
                         "skills_count": len(parsed_cv.skills),
-                        "parser_agent": self.agent_id,
+                        "parser_agent": self.ctx.agent_id,
                     })
 
                     # Store updated validations in job metadata
@@ -221,7 +238,7 @@ class ParserAgent(BaseAgent):
 
                 return AgentTaskResult(
                     task_id=task.task_id,
-                    agent_id=self.agent_id,
+                    agent_id=self.ctx.agent_id,
                     status="success",
                     result={
                         "job_id": job_id,
@@ -249,7 +266,7 @@ class ParserAgent(BaseAgent):
 
             return AgentTaskResult(
                 task_id=task.task_id,
-                agent_id=self.agent_id,
+                agent_id=self.ctx.agent_id,
                 status="error",
                 error=str(e),
                 execution_time=execution_time,
@@ -476,9 +493,10 @@ class ParserAgent(BaseAgent):
                 intent_param = task.intent or "Process CV and determine acceptance"
                 validations_param = None
 
-            # Use semantic discovery to find evaluator agent
+            # Use semantic discovery to find evaluator agent (explicit call)
             print(f"DEBUG: About to call enqueue_to_next_agent", file=sys.stderr, flush=True)
-            job_id_result = self.enqueue_to_next_agent(
+            job_id_result = enqueue_to_next_agent(
+                ctx=self.ctx,
                 capability_query="evaluate CV against job criteria and acceptance standards",
                 task_type="evaluate_cv",
                 payload={
@@ -505,23 +523,32 @@ class ParserAgent(BaseAgent):
 
 
 def main():
-    """Main entry point for the Parser Agent"""
-    import os
+    """
+    Main entry point for the Parser Agent.
 
+    Demonstrates explicit startup lifecycle:
+    1. Create agent instance
+    2. Start worker (registers, starts heartbeat, runs RQ loop)
+    """
     # Get agent ID from environment
     agent_id = os.getenv("AGENT_ID", "parser-001")
 
-    # Create and start agent
+    # Create agent with explicit initialization
     agent = ParserAgent(agent_id=agent_id)
 
     logger.info(
-        "Starting Parser Agent worker",
-        agent_id=agent.agent_id,
-        agent_type=agent.get_agent_type(),
+        "Starting Parser Agent worker with explicit lifecycle",
+        agent_id=agent.ctx.agent_id,
+        agent_type=agent.ctx.agent_type,
     )
 
-    # Start the RQ worker (blocking call)
-    agent.start_worker()
+    # Start the worker (explicit lifecycle management)
+    # This will:
+    # 1. Register agent with agent-registry
+    # 2. Start heartbeat thread
+    # 3. Setup signal handlers
+    # 4. Start RQ worker loop (blocking)
+    start_worker(agent.ctx)
 
 
 if __name__ == "__main__":

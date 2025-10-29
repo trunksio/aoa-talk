@@ -28,7 +28,8 @@ RUN pip install --no-cache-dir -r /app/requirements.txt || true
 # -----------------------------------------------------------------------------
 # Environment and registration config
 # -----------------------------------------------------------------------------
-ENV PYTHONPATH="/shared:/app:/agents_common:${PYTHONPATH}"
+# Set Python path - /app first for agent imports
+ENV PYTHONPATH="/app:/agents_common:/shared:${PYTHONPATH}"
 ENV MANIFEST_PATH="/app/manifest.yaml"
 ENV REGISTRY_URL="http://registry:8001"
 

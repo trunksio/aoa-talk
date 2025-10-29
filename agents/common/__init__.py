@@ -1,13 +1,13 @@
 """
 Agents Common Package
 ----------------------
-Shared utilities and models for Agentic Units (AUs).
+Shared utilities for Agentic Units (AUs).
 
-This package consolidates all common utilities needed by agents,
-including base classes, models, clients, and manifest management.
+This package provides:
+- Lifecycle management for agents
+- Manifest and registration utilities
 """
 
-# Manifest and registration utilities (agents_common specific)
 from .manifest import AgentManifest, Capability, Agent, Embedding
 from .register_on_start import register_agent_from_manifest
 
@@ -20,53 +20,24 @@ sys.path.insert(0, "/shared")
 __version__ = "1.0.0"
 
 __all__ = [
-    # Manifest and registration (agents_common specific)
+    # Manifest and registration
     "AgentManifest",
     "Capability",
     "Agent",
     "Embedding",
     "register_agent_from_manifest",
-    # Configuration
-    "Settings",
-    "get_settings",
-    # Logging
-    "setup_logging",
-    "get_logger",
-    # Agent models
-    "AgentRegistration",
-    "AgentStatus",
-    "JobStatus",
-    "CVJob",
-    "EvaluationResult",
-    "ParsedCV",
-    "EvaluationCriterion",
-    "CVEvaluationReport",
-    "AgentTask",
-    "AgentTaskV2",
-    "AgentTaskResult",
-    # Intent models
-    "IntentConstraint",
-    "IntentSuccessCriteria",
-    "StructuredIntent",
-    "IntentValidation",
-    # Evaluation models
-    "ReasoningStep",
-    "SubCriterion",
-    "StructuredEvaluation",
-    # Clients
-    "DatabaseManager",
-    "get_db_manager",
-    "get_redis_connection",
-    "MinIOClient",
-    "get_minio_client",
-    "OllamaClient",
-    "get_ollama_client",
-    # Base agent
-    "BaseAgent",
-    # Workflows
-    "WorkflowTemplate",
-    "get_workflow_template",
-    "list_workflow_templates",
-    "get_workflows_by_category",
-    "WORKFLOW_TEMPLATES",
+    # Lifecycle management
+    "AgentContext",
+    "register_agent",
+    "start_heartbeat",
+    "stop_heartbeat",
+    "setup_signal_handlers",
+    "start_worker",
+    "validate_intent",
+    "check_intent_drift",
+    "update_intent_context",
+    "discover_next_agent",
+    "enqueue_to_next_agent",
+    "register_agent_context",
+    "process_agent_task",
 ]

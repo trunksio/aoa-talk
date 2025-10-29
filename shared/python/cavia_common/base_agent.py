@@ -1,6 +1,21 @@
 """
 Base Agent class for all Agentic Units
+
+DEPRECATED: This module is deprecated. Use agent_lifecycle.py for explicit
+lifecycle management instead of inheriting from BaseAgent.
+
+See agent_lifecycle.py for the new pattern:
+- AgentContext: Holds agent state and clients
+- start_worker(): Explicit worker startup
+- register_agent(): Explicit registration
+- start_heartbeat(): Explicit heartbeat management
+- etc.
+
+All agents have been refactored to use the new explicit lifecycle pattern.
+This class is kept for backwards compatibility but will be removed in a future version.
 """
+
+import warnings
 
 import os
 import time
@@ -23,7 +38,12 @@ from .redis_client import get_redis_connection
 
 class BaseAgent(ABC):
     """
-    Base class for all Agentic Units in the AOA system.
+    DEPRECATED: Base class for all Agentic Units in the AOA system.
+
+    This class is deprecated. Use agent_lifecycle.AgentContext and explicit
+    lifecycle functions instead.
+
+    See agent_lifecycle.py for the new approach.
 
     Each agent must implement:
     - get_agent_info(): Return agent metadata
@@ -31,6 +51,13 @@ class BaseAgent(ABC):
     """
 
     def __init__(self, agent_id: Optional[str] = None):
+        warnings.warn(
+            "BaseAgent is deprecated. Use agent_lifecycle.AgentContext "
+            "and explicit lifecycle functions instead. "
+            "See agents/template/main.py for an example.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         # Setup logging first
         setup_logging()
         self.logger = get_logger(self.__class__.__name__)

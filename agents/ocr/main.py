@@ -13,11 +13,12 @@ import tempfile
 from typing import Any, Dict
 from pathlib import Path
 
-# Add agents_common package to path
-sys.path.insert(0, "/agents_common")
-
 from agents_common import (
-    BaseAgent,
+    AgentContext,
+    start_worker,
+    enqueue_to_next_agent,
+)
+from cavia_common import (
     AgentTask,
     AgentTaskResult,
     ParsedCV,
@@ -25,6 +26,7 @@ from agents_common import (
     setup_logging,
     get_minio_client,
     get_db_manager,
+    get_ollama_client,
 )
 
 from ocr_processor import DeepSeekOCRProcessor
@@ -34,7 +36,7 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-class OCRAgent(BaseAgent):
+class OCRAgent:
     """
     Agentic Unit for OCR-based CV parsing.
 
@@ -45,20 +47,36 @@ class OCRAgent(BaseAgent):
     - Extract structured data using LLM (contact, education, experience, skills, etc.)
     - Store ParsedCV in database and MinIO
     - Discover and enqueue to EvaluatorAgent
+
+    No longer inherits from BaseAgent - uses explicit lifecycle management.
     """
 
     def __init__(self, agent_id: str = None):
-        super().__init__(agent_id)
+        """
+        Initialize OCRAgent with explicit setup.
+
+        Args:
+            agent_id: Optional agent identifier (auto-generated if not provided)
+        """
+        # Create agent context with explicit lifecycle management
+        self.ctx = AgentContext(
+            agent_id=agent_id or f"ocr-{os.urandom(4).hex()}",
+            agent_type="ocr",
+            agent_info_provider=self.get_agent_info,
+            task_processor=self.process_task
+        )
+
+        # Setup logging from context
+        self.logger = self.ctx.logger
 
         # Initialize DeepSeek-OCR processor (lazy loading for model)
         self.ocr_processor = DeepSeekOCRProcessor()
 
         # Initialize LLM-based extractor (reuse from parser agent pattern)
         # Import here to avoid circular dependencies
-        sys.path.insert(0, "/app/../parser")
         try:
             from parsers.llm_extractor import LLMCVExtractor
-            from agents_common import get_ollama_client
+            from cavia_common import get_ollama_client
 
             ollama_client = get_ollama_client()
             self.llm_extractor = LLMCVExtractor(ollama_client)
@@ -72,14 +90,10 @@ class OCRAgent(BaseAgent):
         self.db = get_db_manager()
 
         self.logger.info(
-            "OCRAgent initialized",
-            agent_id=self.agent_id,
+            "OCRAgent initialized with explicit lifecycle",
+            agent_id=self.ctx.agent_id,
             model_info=self.ocr_processor.get_model_info()
         )
-
-    def get_agent_type(self) -> str:
-        """Return the agent type"""
-        return "ocr"
 
     def get_agent_info(self) -> Dict[str, Any]:
         """Return agent metadata for registration"""
@@ -178,7 +192,7 @@ class OCRAgent(BaseAgent):
 
                 return AgentTaskResult(
                     task_id=task.task_id,
-                    agent_id=self.agent_id,
+                    agent_id=self.ctx.agent_id,
                     status="success",
                     result={
                         "job_id": job_id,
@@ -207,7 +221,7 @@ class OCRAgent(BaseAgent):
 
             return AgentTaskResult(
                 task_id=task.task_id,
-                agent_id=self.agent_id,
+                agent_id=self.ctx.agent_id,
                 status="error",
                 error=str(e),
                 execution_time=execution_time,
@@ -290,7 +304,7 @@ class OCRAgent(BaseAgent):
             extracted_data = self.llm_extractor.extract_all_sections(raw_text)
         else:
             # Inline extraction logic (fallback)
-            from agents_common import get_ollama_client
+            from cavia_common import get_ollama_client
             extracted_data = self._extract_with_ollama_inline(raw_text)
 
         # Build ParsedCV object from LLM-extracted data
@@ -323,7 +337,7 @@ class OCRAgent(BaseAgent):
     def _extract_with_ollama_inline(self, raw_text: str) -> dict:
         """Inline LLM extraction (fallback if LLMCVExtractor not available)"""
         import json
-        from agents_common import get_ollama_client
+        from cavia_common import get_ollama_client
 
         ollama = get_ollama_client()
 
@@ -428,8 +442,9 @@ JSON:"""
 
             self.logger.debug(f"Enqueueing to evaluator for job {job_id}")
 
-            # Use semantic discovery to find evaluator agent
-            job_id_result = self.enqueue_to_next_agent(
+            # Use semantic discovery to find evaluator agent (explicit call)
+            job_id_result = enqueue_to_next_agent(
+                ctx=self.ctx,
                 capability_query="evaluate CV against job criteria and acceptance standards",
                 task_type="evaluate_cv",
                 payload={
@@ -452,24 +467,33 @@ JSON:"""
 
 
 def main():
-    """Main entry point for the OCR Agent"""
-    import os
+    """
+    Main entry point for the OCR Agent.
 
+    Demonstrates explicit startup lifecycle:
+    1. Create agent instance
+    2. Start worker (registers, starts heartbeat, runs RQ loop)
+    """
     # Get agent ID from environment
     agent_id = os.getenv("AGENT_ID", "ocr-001")
 
-    # Create and start agent
+    # Create agent with explicit initialization
     agent = OCRAgent(agent_id=agent_id)
 
     logger.info(
-        "Starting OCR Agent worker",
-        agent_id=agent.agent_id,
-        agent_type=agent.get_agent_type(),
+        "Starting OCR Agent worker with explicit lifecycle",
+        agent_id=agent.ctx.agent_id,
+        agent_type=agent.ctx.agent_type,
         model_info=agent.ocr_processor.get_model_info(),
     )
 
-    # Start the RQ worker (blocking call)
-    agent.start_worker()
+    # Start the worker (explicit lifecycle management)
+    # This will:
+    # 1. Register agent with agent-registry
+    # 2. Start heartbeat thread
+    # 3. Setup signal handlers
+    # 4. Start RQ worker loop (blocking)
+    start_worker(agent.ctx)
 
 
 if __name__ == "__main__":
