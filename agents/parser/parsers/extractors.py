@@ -18,25 +18,25 @@ class CVExtractor:
 
     # Section detection patterns
     SECTION_PATTERNS = {
-        'education': r'(?i)(education|academic|qualifications?|degrees?|university|college)',
-        'experience': r'(?i)(experience|employment|work history|career|professional)',
-        'skills': r'(?i)(skills?|competencies|expertise|technologies|proficiencies)',
-        'certifications': r'(?i)(certifications?|licenses?|credentials?|certificates)',
-        'projects': r'(?i)(projects?|portfolio|publications?)',
-        'languages': r'(?i)(languages?|linguistic)',
+        "education": r"(?i)(education|academic|qualifications?|degrees?|university|college)",
+        "experience": r"(?i)(experience|employment|work history|career|professional)",
+        "skills": r"(?i)(skills?|competencies|expertise|technologies|proficiencies)",
+        "certifications": r"(?i)(certifications?|licenses?|credentials?|certificates)",
+        "projects": r"(?i)(projects?|portfolio|publications?)",
+        "languages": r"(?i)(languages?|linguistic)",
     }
 
     # Contact info patterns
-    EMAIL_PATTERN = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    LINKEDIN_PATTERN = r'linkedin\.com/in/([\w-]+)'
-    GITHUB_PATTERN = r'github\.com/([\w-]+)'
+    EMAIL_PATTERN = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+    LINKEDIN_PATTERN = r"linkedin\.com/in/([\w-]+)"
+    GITHUB_PATTERN = r"github\.com/([\w-]+)"
     URL_PATTERN = r'https?://[^\s<>"]+'
 
     # Date patterns
     DATE_PATTERNS = [
-        r'(\d{4})\s*[-–—]\s*(\d{4}|present|current)',
-        r'(\w+\s+\d{4})\s*[-–—]\s*(\w+\s+\d{4}|present|current)',
-        r'(\d{1,2}/\d{4})\s*[-–—]\s*(\d{1,2}/\d{4}|present|current)',
+        r"(\d{4})\s*[-–—]\s*(\d{4}|present|current)",
+        r"(\w+\s+\d{4})\s*[-–—]\s*(\w+\s+\d{4}|present|current)",
+        r"(\d{1,2}/\d{4})\s*[-–—]\s*(\d{1,2}/\d{4}|present|current)",
     ]
 
     def __init__(self):
@@ -47,7 +47,7 @@ class CVExtractor:
         contact = {}
 
         # Extract name (usually first line or prominent)
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
         if lines:
             # Heuristic: name is usually in first few lines, not too long
             for line in lines[:5]:
@@ -55,7 +55,7 @@ class CVExtractor:
                     # Check if it looks like a name (2-4 words, capitalized)
                     words = line.split()
                     if 2 <= len(words) <= 4 and all(w[0].isupper() for w in words if w):
-                        contact['name'] = line
+                        contact["name"] = line
                         break
 
         # Extract email
@@ -65,7 +65,7 @@ class CVExtractor:
             for email in emails:
                 try:
                     validate_email(email)
-                    contact['email'] = email.lower()
+                    contact["email"] = email.lower()
                     break
                 except EmailNotValidError:
                     continue
@@ -73,22 +73,22 @@ class CVExtractor:
         # Extract phone
         phones = self._extract_phone_numbers(text)
         if phones:
-            contact['phone'] = phones[0]
+            contact["phone"] = phones[0]
 
         # Extract LinkedIn
         linkedin = re.search(self.LINKEDIN_PATTERN, text, re.IGNORECASE)
         if linkedin:
-            contact['linkedin'] = f"linkedin.com/in/{linkedin.group(1)}"
+            contact["linkedin"] = f"linkedin.com/in/{linkedin.group(1)}"
 
         # Extract GitHub
         github = re.search(self.GITHUB_PATTERN, text, re.IGNORECASE)
         if github:
-            contact['github'] = f"github.com/{github.group(1)}"
+            contact["github"] = f"github.com/{github.group(1)}"
 
         # Extract location (heuristic: look for city, state/country patterns)
         location = self._extract_location(text)
         if location:
-            contact['location'] = location
+            contact["location"] = location
 
         return contact
 
@@ -99,8 +99,7 @@ class CVExtractor:
             # Try to parse phone numbers (assume US/international format)
             for match in phonenumbers.PhoneNumberMatcher(text, "US"):
                 formatted = phonenumbers.format_number(
-                    match.number,
-                    phonenumbers.PhoneNumberFormat.INTERNATIONAL
+                    match.number, phonenumbers.PhoneNumberFormat.INTERNATIONAL
                 )
                 phones.append(formatted)
         except Exception as e:
@@ -111,7 +110,7 @@ class CVExtractor:
     def _extract_location(self, text: str) -> Optional[str]:
         """Extract location using common patterns"""
         # Pattern: City, State/Country
-        location_pattern = r'([A-Z][a-zA-Z\s]+),\s+([A-Z]{2,}|[A-Z][a-zA-Z\s]+)'
+        location_pattern = r"([A-Z][a-zA-Z\s]+),\s+([A-Z]{2,}|[A-Z][a-zA-Z\s]+)"
         matches = re.findall(location_pattern, text[:1000])  # Check first 1000 chars
 
         if matches:
@@ -129,9 +128,9 @@ class CVExtractor:
             Dict mapping section name to section text
         """
         sections = {}
-        lines = text.split('\n')
+        lines = text.split("\n")
 
-        current_section = 'header'
+        current_section = "header"
         current_text = []
         section_order = []
 
@@ -152,7 +151,7 @@ class CVExtractor:
             if found_section:
                 # Save previous section
                 if current_text:
-                    sections[current_section] = '\n'.join(current_text)
+                    sections[current_section] = "\n".join(current_text)
                     section_order.append(current_section)
 
                 # Start new section
@@ -163,7 +162,7 @@ class CVExtractor:
 
         # Save last section
         if current_text:
-            sections[current_section] = '\n'.join(current_text)
+            sections[current_section] = "\n".join(current_text)
 
         return sections
 
@@ -173,9 +172,9 @@ class CVExtractor:
 
         # Common patterns for degrees
         degree_patterns = [
-            r'(B\.?S\.?|Bachelor|BA|BS|B\.?A\.?)\s+(?:of\s+)?([A-Za-z\s&]+)',
-            r'(M\.?S\.?|Master|MA|MS|M\.?A\.?|MBA)\s+(?:of\s+)?([A-Za-z\s&]+)',
-            r'(Ph\.?D\.?|Doctorate|Doctor)\s+(?:of\s+)?([A-Za-z\s&]+)',
+            r"(B\.?S\.?|Bachelor|BA|BS|B\.?A\.?)\s+(?:of\s+)?([A-Za-z\s&]+)",
+            r"(M\.?S\.?|Master|MA|MS|M\.?A\.?|MBA)\s+(?:of\s+)?([A-Za-z\s&]+)",
+            r"(Ph\.?D\.?|Doctorate|Doctor)\s+(?:of\s+)?([A-Za-z\s&]+)",
         ]
 
         # Try to find degree mentions
@@ -210,13 +209,15 @@ class CVExtractor:
     def _find_institution(self, text: str) -> Optional[str]:
         """Find institution name in text (heuristic)"""
         # Look for patterns like "University of X", "X Institute", "X College"
-        institution_pattern = r'(?:University|Institute|College|School)\s+(?:of\s+)?([A-Z][A-Za-z\s&]+)'
+        institution_pattern = (
+            r"(?:University|Institute|College|School)\s+(?:of\s+)?([A-Z][A-Za-z\s&]+)"
+        )
         match = re.search(institution_pattern, text)
         if match:
             return match.group(0).strip()
 
         # Or reversed: "X University"
-        reverse_pattern = r'([A-Z][A-Za-z\s&]+?)\s+(?:University|Institute|College)'
+        reverse_pattern = r"([A-Z][A-Za-z\s&]+?)\s+(?:University|Institute|College)"
         match = re.search(reverse_pattern, text)
         if match:
             return match.group(0).strip()
@@ -240,7 +241,7 @@ class CVExtractor:
 
         # Split by likely entry boundaries (dates, company names)
         # This is a simplified heuristic
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
 
         current_entry = {}
         for i, line in enumerate(lines):
@@ -262,13 +263,13 @@ class CVExtractor:
                 }
 
                 # Try to find job title and company in nearby lines
-                context = ' '.join(lines[max(0, i - 2):min(len(lines), i + 3)])
+                context = " ".join(lines[max(0, i - 2) : min(len(lines), i + 3)])
                 # Heuristics would go here
 
             elif current_entry:
                 # Add to current entry description
-                if 'description' in current_entry:
-                    current_entry['description'] += line + ' '
+                if "description" in current_entry:
+                    current_entry["description"] += line + " "
 
         # Save last entry
         if current_entry:
@@ -283,15 +284,15 @@ class CVExtractor:
         # Common skill patterns (technologies, programming languages, tools)
         skill_keywords = [
             # Programming languages
-            r'\b(Python|Java|JavaScript|TypeScript|C\+\+|C#|Go|Rust|Ruby|PHP|Swift|Kotlin)\b',
+            r"\b(Python|Java|JavaScript|TypeScript|C\+\+|C#|Go|Rust|Ruby|PHP|Swift|Kotlin)\b",
             # Frameworks
-            r'\b(React|Angular|Vue|Django|Flask|Spring|Node\.js|Express|FastAPI)\b',
+            r"\b(React|Angular|Vue|Django|Flask|Spring|Node\.js|Express|FastAPI)\b",
             # Databases
-            r'\b(PostgreSQL|MySQL|MongoDB|Redis|Oracle|SQL Server|Cassandra)\b',
+            r"\b(PostgreSQL|MySQL|MongoDB|Redis|Oracle|SQL Server|Cassandra)\b",
             # Cloud/DevOps
-            r'\b(AWS|Azure|GCP|Docker|Kubernetes|Jenkins|GitLab|Terraform)\b',
+            r"\b(AWS|Azure|GCP|Docker|Kubernetes|Jenkins|GitLab|Terraform)\b",
             # Tools
-            r'\b(Git|GitHub|GitLab|Jira|Confluence|VS Code|IntelliJ)\b',
+            r"\b(Git|GitHub|GitLab|Jira|Confluence|VS Code|IntelliJ)\b",
         ]
 
         for pattern in skill_keywords:
@@ -309,14 +310,16 @@ class CVExtractor:
 
         # Common certification patterns
         cert_patterns = [
-            r'(?:Certified|Certification)\s+([A-Za-z\s\-&]+)',
-            r'([A-Z]{2,})\s+(?:Certified|Certification)',
+            r"(?:Certified|Certification)\s+([A-Za-z\s\-&]+)",
+            r"([A-Z]{2,})\s+(?:Certified|Certification)",
         ]
 
         for pattern in cert_patterns:
             matches = re.finditer(pattern, text)
             for match in matches:
-                cert_name = match.group(1).strip() if match.group(1) else match.group(0).strip()
+                cert_name = (
+                    match.group(1).strip() if match.group(1) else match.group(0).strip()
+                )
 
                 # Try to find issuer and date nearby
                 context_start = max(0, match.start() - 100)

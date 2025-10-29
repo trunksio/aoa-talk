@@ -24,10 +24,11 @@ class TestOCRAgent:
     @pytest.fixture
     def mock_dependencies(self):
         """Mock external dependencies"""
-        with patch('main.get_minio_client') as mock_minio, \
-             patch('main.get_db_manager') as mock_db, \
-             patch('main.get_ollama_client') as mock_ollama, \
-             patch('main.DeepSeekOCRProcessor') as mock_ocr_processor:
+        with patch("main.get_minio_client") as mock_minio, patch(
+            "main.get_db_manager"
+        ) as mock_db, patch("main.get_ollama_client") as mock_ollama, patch(
+            "main.DeepSeekOCRProcessor"
+        ) as mock_ocr_processor:
 
             # Setup mock MinIO
             mock_minio_instance = Mock()
@@ -52,10 +53,10 @@ class TestOCRAgent:
             mock_ocr_processor.return_value = mock_processor_instance
 
             yield {
-                'minio': mock_minio_instance,
-                'db': mock_db_instance,
-                'ollama': mock_ollama_instance,
-                'ocr_processor': mock_processor_instance,
+                "minio": mock_minio_instance,
+                "db": mock_db_instance,
+                "ollama": mock_ollama_instance,
+                "ocr_processor": mock_processor_instance,
             }
 
     def test_agent_initialization(self, mock_dependencies):
@@ -79,10 +80,12 @@ class TestOCRAgent:
         assert "charts_and_graphs" in info["capabilities"]["extraction_features"]
         assert "deepseek-ocr" == info["capabilities"]["ocr_model"]
 
-    @patch('main.os.path.exists', return_value=True)
-    @patch('main.os.unlink')
-    @patch('main.tempfile.NamedTemporaryFile')
-    def test_process_pdf_task(self, mock_tempfile, mock_unlink, mock_exists, mock_dependencies):
+    @patch("main.os.path.exists", return_value=True)
+    @patch("main.os.unlink")
+    @patch("main.tempfile.NamedTemporaryFile")
+    def test_process_pdf_task(
+        self, mock_tempfile, mock_unlink, mock_exists, mock_dependencies
+    ):
         """Test processing a PDF OCR task"""
         from main import OCRAgent
 
@@ -92,9 +95,9 @@ class TestOCRAgent:
         mock_tempfile.return_value.__enter__.return_value = mock_temp
 
         # Setup OCR processor mock
-        mock_dependencies['ocr_processor'].process_pdf.return_value = (
+        mock_dependencies["ocr_processor"].process_pdf.return_value = (
             "Test CV Content\nName: John Doe\nEmail: john@example.com",
-            1
+            1,
         )
 
         # Create agent
@@ -114,7 +117,7 @@ class TestOCRAgent:
         mock_session = MagicMock()
         mock_session.__enter__.return_value = mock_session
         mock_session.__exit__.return_value = False
-        mock_dependencies['db'].get_session.return_value = mock_session
+        mock_dependencies["db"].get_session.return_value = mock_session
 
         # Mock enqueue method
         agent.enqueue_to_next_agent = Mock(return_value="job-123")
@@ -143,7 +146,7 @@ class TestOCRAgent:
         assert result.result["parsed_cv"]["contact_info"]["name"] == "John Doe"
 
         # Verify OCR was called
-        mock_dependencies['ocr_processor'].process_pdf.assert_called_once()
+        mock_dependencies["ocr_processor"].process_pdf.assert_called_once()
 
     def test_ocr_processor_model_info(self, mock_dependencies):
         """Test that OCR processor provides model info"""
@@ -160,7 +163,7 @@ class TestOCRAgent:
 class TestDeepSeekOCRProcessor:
     """Test suite for DeepSeek-OCR Processor"""
 
-    @patch('ocr_processor.torch.cuda.is_available', return_value=False)
+    @patch("ocr_processor.torch.cuda.is_available", return_value=False)
     def test_processor_initialization_cpu(self, mock_cuda):
         """Test processor initializes on CPU when CUDA not available"""
         from ocr_processor import DeepSeekOCRProcessor
@@ -170,7 +173,7 @@ class TestDeepSeekOCRProcessor:
         assert processor.device == "cpu"
         assert processor._model_loaded == False
 
-    @patch('ocr_processor.torch.cuda.is_available', return_value=True)
+    @patch("ocr_processor.torch.cuda.is_available", return_value=True)
     def test_processor_initialization_cuda(self, mock_cuda):
         """Test processor initializes on CUDA when available"""
         from ocr_processor import DeepSeekOCRProcessor
@@ -180,9 +183,9 @@ class TestDeepSeekOCRProcessor:
         assert processor.device == "cuda"
         assert processor._model_loaded == False
 
-    @patch('ocr_processor.torch.cuda.is_available', return_value=True)
-    @patch('ocr_processor.torch.cuda.device_count', return_value=1)
-    @patch('ocr_processor.torch.cuda.get_device_name', return_value="NVIDIA GB10")
+    @patch("ocr_processor.torch.cuda.is_available", return_value=True)
+    @patch("ocr_processor.torch.cuda.device_count", return_value=1)
+    @patch("ocr_processor.torch.cuda.get_device_name", return_value="NVIDIA GB10")
     def test_model_info(self, mock_device_name, mock_device_count, mock_cuda_available):
         """Test getting model information"""
         from ocr_processor import DeepSeekOCRProcessor

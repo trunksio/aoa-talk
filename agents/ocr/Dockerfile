@@ -84,7 +84,7 @@ RUN chmod +x /app/start.sh
 # -----------------------------------------------------------------------------
 # Set Python path - /app first for agent imports
 # -----------------------------------------------------------------------------
-ENV PYTHONPATH="/app:/app/agents_common:/shared:${PYTHONPATH}"
+ENV PYTHONPATH="/app:/agents_common:/shared:${PYTHONPATH}"
 
 # -----------------------------------------------------------------------------
 # Default command

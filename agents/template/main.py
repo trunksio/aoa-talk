@@ -14,8 +14,6 @@ from typing import Any, Dict
 from agents_common import (
     AgentContext,
     start_worker,
-)
-from cavia_common import (
     AgentTask,
     AgentTaskResult,
     get_logger,
@@ -48,7 +46,7 @@ class TemplateAgent:
             agent_id=agent_id or f"template-{os.urandom(4).hex()}",
             agent_type="template",  # Change this for your agent
             agent_info_provider=self.get_agent_info,
-            task_processor=self.process_task
+            task_processor=self.process_task,
         )
 
         # Setup logging from context
@@ -57,7 +55,10 @@ class TemplateAgent:
         # Add any agent-specific initialization here
         # For example: Initialize clients, models, etc.
 
-        self.logger.info("TemplateAgent initialized with explicit lifecycle", agent_id=self.ctx.agent_id)
+        self.logger.info(
+            "TemplateAgent initialized with explicit lifecycle",
+            agent_id=self.ctx.agent_id,
+        )
 
     def get_agent_info(self) -> Dict[str, Any]:
         """Return agent metadata for registration"""

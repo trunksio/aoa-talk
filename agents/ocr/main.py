@@ -17,8 +17,6 @@ from agents_common import (
     AgentContext,
     start_worker,
     enqueue_to_next_agent,
-)
-from cavia_common import (
     AgentTask,
     AgentTaskResult,
     ParsedCV,
@@ -63,7 +61,7 @@ class OCRAgent:
             agent_id=agent_id or f"ocr-{os.urandom(4).hex()}",
             agent_type="ocr",
             agent_info_provider=self.get_agent_info,
-            task_processor=self.process_task
+            task_processor=self.process_task,
         )
 
         # Setup logging from context
@@ -76,7 +74,7 @@ class OCRAgent:
         # Import here to avoid circular dependencies
         try:
             from parsers.llm_extractor import LLMCVExtractor
-            from cavia_common import get_ollama_client
+            from agents_common import get_ollama_client
 
             ollama_client = get_ollama_client()
             self.llm_extractor = LLMCVExtractor(ollama_client)
@@ -92,7 +90,7 @@ class OCRAgent:
         self.logger.info(
             "OCRAgent initialized with explicit lifecycle",
             agent_id=self.ctx.agent_id,
-            model_info=self.ocr_processor.get_model_info()
+            model_info=self.ocr_processor.get_model_info(),
         )
 
     def get_agent_info(self) -> Dict[str, Any]:
@@ -112,7 +110,7 @@ class OCRAgent:
                     "education",
                     "work_experience",
                     "skills",
-                    "certifications"
+                    "certifications",
                 ],
                 "version": "1.0.0",
             },
@@ -156,12 +154,12 @@ class OCRAgent:
                 # Detect file type and run OCR
                 file_ext = Path(filename).suffix.lower()
 
-                if file_ext == '.pdf':
+                if file_ext == ".pdf":
                     raw_text, num_pages = self._process_pdf_with_ocr(temp_file)
                     metadata = {"num_pages": num_pages, "file_type": "pdf"}
-                elif file_ext in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp']:
+                elif file_ext in [".png", ".jpg", ".jpeg", ".tiff", ".bmp"]:
                     raw_text = self._process_image_with_ocr(temp_file)
-                    metadata = {"file_type": file_ext.replace('.', '')}
+                    metadata = {"file_type": file_ext.replace(".", "")}
                 else:
                     raise ValueError(f"Unsupported file format for OCR: {file_ext}")
 
@@ -234,7 +232,9 @@ class OCRAgent:
         # Download file data
         file_data = self.minio.download_file(bucket, object_name)
         if not file_data:
-            raise ValueError(f"Failed to download file from MinIO: {bucket}/{object_name}")
+            raise ValueError(
+                f"Failed to download file from MinIO: {bucket}/{object_name}"
+            )
 
         # Save to temp file
         suffix = Path(filename).suffix
@@ -257,8 +257,7 @@ class OCRAgent:
         try:
             # Try primary PDF processing method (pypdfium2)
             text, num_pages = self.ocr_processor.process_pdf(
-                pdf_path,
-                prompt_mode="markdown"  # Use markdown for better structure
+                pdf_path, prompt_mode="markdown"  # Use markdown for better structure
             )
             return text, num_pages
 
@@ -268,8 +267,7 @@ class OCRAgent:
             # Try fallback method (pdf2image)
             try:
                 text, num_pages = self.ocr_processor.process_pdf_fallback(
-                    pdf_path,
-                    prompt_mode="markdown"
+                    pdf_path, prompt_mode="markdown"
                 )
                 return text, num_pages
 
@@ -287,8 +285,7 @@ class OCRAgent:
         self.logger.info("Processing image with DeepSeek-OCR")
 
         text = self.ocr_processor.process_image(
-            image_path,
-            prompt_mode="markdown"  # Use markdown for better structure
+            image_path, prompt_mode="markdown"  # Use markdown for better structure
         )
 
         return text
@@ -304,7 +301,8 @@ class OCRAgent:
             extracted_data = self.llm_extractor.extract_all_sections(raw_text)
         else:
             # Inline extraction logic (fallback)
-            from cavia_common import get_ollama_client
+            from agents_common import get_ollama_client
+
             extracted_data = self._extract_with_ollama_inline(raw_text)
 
         # Build ParsedCV object from LLM-extracted data
@@ -320,7 +318,7 @@ class OCRAgent:
                 "ocr_metadata": ocr_metadata,
                 "parser_version": "1.0.0-deepseek-ocr",
                 "extraction_method": "deepseek_ocr_plus_llm",
-            }
+            },
         )
 
         self.logger.debug(
@@ -337,7 +335,7 @@ class OCRAgent:
     def _extract_with_ollama_inline(self, raw_text: str) -> dict:
         """Inline LLM extraction (fallback if LLMCVExtractor not available)"""
         import json
-        from cavia_common import get_ollama_client
+        from agents_common import get_ollama_client
 
         ollama = get_ollama_client()
 
@@ -358,8 +356,11 @@ JSON:"""
 
         response = ollama.chat(
             messages=[
-                {"role": "system", "content": "You are a CV parsing assistant. Extract information accurately and return valid JSON only."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are a CV parsing assistant. Extract information accurately and return valid JSON only.",
+                },
+                {"role": "user", "content": prompt},
             ],
             temperature=0.1,
         )
@@ -384,7 +385,8 @@ JSON:"""
                 # Update cv_jobs table with parsed data
                 from sqlalchemy import text
 
-                query = text("""
+                query = text(
+                    """
                     UPDATE cv_jobs
                     SET metadata = jsonb_set(
                         COALESCE(metadata, '{}'),
@@ -392,14 +394,15 @@ JSON:"""
                         CAST(:parsed_cv AS jsonb)
                     )
                     WHERE job_id = :job_id
-                """)
+                """
+                )
 
                 session.execute(
                     query,
                     {
                         "job_id": job_id,
                         "parsed_cv": parsed_cv.model_dump_json(),
-                    }
+                    },
                 )
                 session.commit()
 
@@ -424,7 +427,7 @@ JSON:"""
             self.minio.upload_file(
                 bucket_name="cvs-processed",
                 object_name=storage_path,
-                file_data=BytesIO(json_data.encode('utf-8')),
+                file_data=BytesIO(json_data.encode("utf-8")),
                 content_type="application/json",
             )
 
@@ -435,7 +438,9 @@ JSON:"""
             self.logger.error("Failed to store ParsedCV in MinIO", error=str(e))
             raise
 
-    def _enqueue_to_evaluator(self, job_id: str, parsed_cv: ParsedCV, storage_path: str, task: AgentTask):
+    def _enqueue_to_evaluator(
+        self, job_id: str, parsed_cv: ParsedCV, storage_path: str, task: AgentTask
+    ):
         """Discover and enqueue to evaluator agent using semantic discovery"""
         try:
             import json
@@ -453,16 +458,22 @@ JSON:"""
                     "storage_path": storage_path,
                 },
                 intent=task.intent or "Process scanned CV and determine acceptance",
-                steps_completed=task.steps_completed
+                steps_completed=task.steps_completed,
             )
 
             if job_id_result:
-                self.logger.info("Enqueued to evaluator via semantic discovery", job_id=job_id, rq_job_id=job_id_result)
+                self.logger.info(
+                    "Enqueued to evaluator via semantic discovery",
+                    job_id=job_id,
+                    rq_job_id=job_id_result,
+                )
             else:
                 self.logger.warning("Failed to enqueue to evaluator", job_id=job_id)
 
         except Exception as e:
-            self.logger.error("Failed to enqueue to evaluator", job_id=job_id, error=str(e))
+            self.logger.error(
+                "Failed to enqueue to evaluator", job_id=job_id, error=str(e)
+            )
             # Don't raise - OCR extraction was successful even if enqueueing failed
 
 

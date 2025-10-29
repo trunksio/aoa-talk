@@ -16,8 +16,6 @@ from agents_common import (
     check_intent_drift,
     update_intent_context,
     enqueue_to_next_agent,
-)
-from cavia_common import (
     AgentTask,
     AgentTaskV2,
     AgentTaskResult,
@@ -61,7 +59,7 @@ class ParserAgent:
             agent_id=agent_id or f"parser-{os.urandom(4).hex()}",
             agent_type="parser",
             agent_info_provider=self.get_agent_info,
-            task_processor=self.process_task
+            task_processor=self.process_task,
         )
 
         # Setup logging from context
@@ -72,7 +70,8 @@ class ParserAgent:
         self.docx_parser = DOCXParser()
 
         # Initialize LLM-based extractor (much more reliable than regex)
-        from cavia_common import get_ollama_client
+        from agents_common import get_ollama_client
+
         ollama_client = get_ollama_client()
         self.extractor = LLMCVExtractor(ollama_client)
 
@@ -80,7 +79,10 @@ class ParserAgent:
         self.minio = get_minio_client()
         self.db = get_db_manager()
 
-        self.logger.info("ParserAgent initialized with explicit lifecycle", agent_id=self.ctx.agent_id)
+        self.logger.info(
+            "ParserAgent initialized with explicit lifecycle",
+            agent_id=self.ctx.agent_id,
+        )
 
     def get_agent_info(self) -> Dict[str, Any]:
         """Return agent metadata for registration"""
@@ -94,7 +96,7 @@ class ParserAgent:
                     "education",
                     "work_experience",
                     "skills",
-                    "certifications"
+                    "certifications",
                 ],
                 "version": "1.0.0",
             },
@@ -120,7 +122,9 @@ class ParserAgent:
         start_time = time.time()
 
         # Detect task version
-        is_v2_task = isinstance(task, AgentTaskV2) or hasattr(task, 'intent_validations')
+        is_v2_task = isinstance(task, AgentTaskV2) or hasattr(
+            task, "intent_validations"
+        )
 
         try:
             # INTENT VALIDATION - Step 1: Validate intent alignment
@@ -130,7 +134,9 @@ class ParserAgent:
                     task_id=task.task_id,
                     job_id=task.payload.get("job_id"),
                     filename=task.payload.get("filename"),
-                    intent_goal=task.intent.goal if hasattr(task.intent, 'goal') else "N/A",
+                    intent_goal=(
+                        task.intent.goal if hasattr(task.intent, "goal") else "N/A"
+                    ),
                 )
 
                 # Validate intent alignment (explicit call)
@@ -151,10 +157,13 @@ class ParserAgent:
                     self.logger.warning(
                         "Intent drift detected! Stopping workflow to prevent busy work.",
                         task_id=task.task_id,
-                        avg_drift=sum(v.drift_score for v in task.intent_validations) / len(task.intent_validations),
+                        avg_drift=sum(v.drift_score for v in task.intent_validations)
+                        / len(task.intent_validations),
                     )
                     # Store drift detection in job metadata
-                    self._store_drift_detection(task.payload["job_id"], task.intent_validations)
+                    self._store_drift_detection(
+                        task.payload["job_id"], task.intent_validations
+                    )
 
                     return AgentTaskResult(
                         task_id=task.task_id,
@@ -184,10 +193,10 @@ class ParserAgent:
                 # Detect file type and parse
                 file_ext = Path(filename).suffix.lower()
 
-                if file_ext == '.pdf':
+                if file_ext == ".pdf":
                     raw_text = self.pdf_parser.parse(temp_file)
                     metadata = self.pdf_parser.get_metadata(temp_file)
-                elif file_ext in ['.docx', '.doc']:
+                elif file_ext in [".docx", ".doc"]:
                     raw_text = self.docx_parser.parse(temp_file)
                     metadata = self.docx_parser.get_metadata(temp_file)
                 else:
@@ -209,14 +218,18 @@ class ParserAgent:
 
                 # INTENT UPDATE - Step 3: Update intent context with results (explicit call)
                 if is_v2_task:
-                    update_intent_context(task, self.ctx, {
-                        "parsing_completed": True,
-                        "contact_extracted": len(parsed_cv.contact_info) > 0,
-                        "education_count": len(parsed_cv.education),
-                        "experience_count": len(parsed_cv.experience),
-                        "skills_count": len(parsed_cv.skills),
-                        "parser_agent": self.ctx.agent_id,
-                    })
+                    update_intent_context(
+                        task,
+                        self.ctx,
+                        {
+                            "parsing_completed": True,
+                            "contact_extracted": len(parsed_cv.contact_info) > 0,
+                            "education_count": len(parsed_cv.education),
+                            "experience_count": len(parsed_cv.experience),
+                            "skills_count": len(parsed_cv.skills),
+                            "parser_agent": self.ctx.agent_id,
+                        },
+                    )
 
                     # Store updated validations in job metadata
                     self._store_intent_validations(job_id, task.intent_validations)
@@ -279,7 +292,9 @@ class ParserAgent:
         # Download file data
         file_data = self.minio.download_file(bucket, object_name)
         if not file_data:
-            raise ValueError(f"Failed to download file from MinIO: {bucket}/{object_name}")
+            raise ValueError(
+                f"Failed to download file from MinIO: {bucket}/{object_name}"
+            )
 
         # Save to temp file
         suffix = Path(filename).suffix
@@ -312,7 +327,7 @@ class ParserAgent:
                 "file_metadata": file_metadata,
                 "parser_version": "2.0.0-llm",
                 "extraction_method": "ollama_llm",
-            }
+            },
         )
 
         self.logger.debug(
@@ -333,7 +348,8 @@ class ParserAgent:
                 # Update cv_jobs table with parsed data
                 from sqlalchemy import text
 
-                query = text("""
+                query = text(
+                    """
                     UPDATE cv_jobs
                     SET metadata = jsonb_set(
                         COALESCE(metadata, '{}'),
@@ -341,14 +357,15 @@ class ParserAgent:
                         CAST(:parsed_cv AS jsonb)
                     )
                     WHERE job_id = :job_id
-                """)
+                """
+                )
 
                 session.execute(
                     query,
                     {
                         "job_id": job_id,
                         "parsed_cv": parsed_cv.model_dump_json(),
-                    }
+                    },
                 )
                 session.commit()
 
@@ -373,7 +390,7 @@ class ParserAgent:
             self.minio.upload_file(
                 bucket_name="cvs-processed",
                 object_name=storage_path,
-                file_data=BytesIO(json_data.encode('utf-8')),
+                file_data=BytesIO(json_data.encode("utf-8")),
                 content_type="application/json",
             )
 
@@ -392,7 +409,8 @@ class ParserAgent:
             with self.db.get_session() as session:
                 from sqlalchemy import text
 
-                query = text("""
+                query = text(
+                    """
                     UPDATE cv_jobs
                     SET metadata = jsonb_set(
                         COALESCE(metadata, '{}'),
@@ -400,20 +418,30 @@ class ParserAgent:
                         CAST(:validations AS jsonb)
                     )
                     WHERE job_id = :job_id
-                """)
+                """
+                )
 
-                validations_json = json.dumps([v.model_dump() if hasattr(v, 'model_dump') else v for v in validations])
+                validations_json = json.dumps(
+                    [
+                        v.model_dump() if hasattr(v, "model_dump") else v
+                        for v in validations
+                    ]
+                )
 
                 session.execute(
                     query,
                     {
                         "job_id": job_id,
                         "validations": validations_json,
-                    }
+                    },
                 )
                 session.commit()
 
-            self.logger.debug("Intent validations stored in database", job_id=job_id, count=len(validations))
+            self.logger.debug(
+                "Intent validations stored in database",
+                job_id=job_id,
+                count=len(validations),
+            )
 
         except Exception as e:
             self.logger.error("Failed to store intent validations", error=str(e))
@@ -428,11 +456,18 @@ class ParserAgent:
                 from sqlalchemy import text
 
                 # Calculate drift metrics
-                avg_drift = sum(v.drift_score for v in validations) / len(validations) if validations else 0
-                max_drift = max(v.drift_score for v in validations) if validations else 0
+                avg_drift = (
+                    sum(v.drift_score for v in validations) / len(validations)
+                    if validations
+                    else 0
+                )
+                max_drift = (
+                    max(v.drift_score for v in validations) if validations else 0
+                )
 
                 # Store drift info and update status
-                query = text("""
+                query = text(
+                    """
                     UPDATE cv_jobs
                     SET
                         status = 'failed',
@@ -446,16 +481,24 @@ class ParserAgent:
                             CAST(:drift_info AS jsonb)
                         )
                     WHERE job_id = :job_id
-                """)
+                """
+                )
 
-                validations_json = json.dumps([v.model_dump() if hasattr(v, 'model_dump') else v for v in validations])
-                drift_info = json.dumps({
-                    "detected": True,
-                    "avg_drift": avg_drift,
-                    "max_drift": max_drift,
-                    "threshold": 0.4,
-                    "message": "Workflow stopped due to intent drift - agents not aligned with original goal"
-                })
+                validations_json = json.dumps(
+                    [
+                        v.model_dump() if hasattr(v, "model_dump") else v
+                        for v in validations
+                    ]
+                )
+                drift_info = json.dumps(
+                    {
+                        "detected": True,
+                        "avg_drift": avg_drift,
+                        "max_drift": max_drift,
+                        "threshold": 0.4,
+                        "message": "Workflow stopped due to intent drift - agents not aligned with original goal",
+                    }
+                )
 
                 session.execute(
                     query,
@@ -463,25 +506,38 @@ class ParserAgent:
                         "job_id": job_id,
                         "validations": validations_json,
                         "drift_info": drift_info,
-                    }
+                    },
                 )
                 session.commit()
 
-            self.logger.info("Drift detection info stored", job_id=job_id, avg_drift=avg_drift, max_drift=max_drift)
+            self.logger.info(
+                "Drift detection info stored",
+                job_id=job_id,
+                avg_drift=avg_drift,
+                max_drift=max_drift,
+            )
 
         except Exception as e:
             self.logger.error("Failed to store drift detection", error=str(e))
 
-    def _enqueue_to_evaluator(self, job_id: str, parsed_cv: ParsedCV, storage_path: str, task):
+    def _enqueue_to_evaluator(
+        self, job_id: str, parsed_cv: ParsedCV, storage_path: str, task
+    ):
         """Discover and enqueue to evaluator agent using semantic discovery"""
         try:
             import json
             import sys
 
-            print(f"DEBUG: _enqueue_to_evaluator called for job {job_id}", file=sys.stderr, flush=True)
+            print(
+                f"DEBUG: _enqueue_to_evaluator called for job {job_id}",
+                file=sys.stderr,
+                flush=True,
+            )
 
             # Detect task version
-            is_v2_task = isinstance(task, AgentTaskV2) or hasattr(task, 'intent_validations')
+            is_v2_task = isinstance(task, AgentTaskV2) or hasattr(
+                task, "intent_validations"
+            )
 
             # Build task parameters
             if is_v2_task:
@@ -494,7 +550,11 @@ class ParserAgent:
                 validations_param = None
 
             # Use semantic discovery to find evaluator agent (explicit call)
-            print(f"DEBUG: About to call enqueue_to_next_agent", file=sys.stderr, flush=True)
+            print(
+                f"DEBUG: About to call enqueue_to_next_agent",
+                file=sys.stderr,
+                flush=True,
+            )
             job_id_result = enqueue_to_next_agent(
                 ctx=self.ctx,
                 capability_query="evaluate CV against job criteria and acceptance standards",
@@ -506,19 +566,33 @@ class ParserAgent:
                 },
                 intent=intent_param,
                 steps_completed=task.steps_completed,
-                intent_validations=validations_param  # Pass validations forward
+                intent_validations=validations_param,  # Pass validations forward
             )
 
-            print(f"DEBUG: enqueue_to_next_agent returned: {job_id_result}", file=sys.stderr, flush=True)
+            print(
+                f"DEBUG: enqueue_to_next_agent returned: {job_id_result}",
+                file=sys.stderr,
+                flush=True,
+            )
 
             if job_id_result:
-                self.logger.info("Enqueued to evaluator via semantic discovery", job_id=job_id, rq_job_id=job_id_result)
+                self.logger.info(
+                    "Enqueued to evaluator via semantic discovery",
+                    job_id=job_id,
+                    rq_job_id=job_id_result,
+                )
             else:
                 self.logger.warning("Failed to enqueue to evaluator", job_id=job_id)
 
         except Exception as e:
-            print(f"DEBUG: Exception in _enqueue_to_evaluator: {e}", file=sys.stderr, flush=True)
-            self.logger.error("Failed to enqueue to evaluator", job_id=job_id, error=str(e))
+            print(
+                f"DEBUG: Exception in _enqueue_to_evaluator: {e}",
+                file=sys.stderr,
+                flush=True,
+            )
+            self.logger.error(
+                "Failed to enqueue to evaluator", job_id=job_id, error=str(e)
+            )
             # Don't raise - parsing was successful even if enqueueing failed
 
 

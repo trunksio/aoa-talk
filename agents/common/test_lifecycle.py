@@ -311,7 +311,7 @@ class TestIntentValidation:
 
     def test_validate_intent_aligned(self, mock_agent_context):
         """Test intent validation for aligned task"""
-        from cavia_common import AgentTaskV2, StructuredIntent
+        from agents_common import AgentTaskV2, StructuredIntent
 
         # Create a task with aligned intent
         intent = StructuredIntent(
@@ -346,7 +346,7 @@ class TestIntentValidation:
 
     def test_check_intent_drift_below_threshold(self, mock_agent_context):
         """Test drift check with low drift (should not stop workflow)"""
-        from cavia_common import AgentTaskV2, StructuredIntent, IntentValidation
+        from agents_common import AgentTaskV2, StructuredIntent, IntentValidation
 
         intent = StructuredIntent(
             intent_id="intent-001",
@@ -387,7 +387,7 @@ class TestIntentValidation:
 
     def test_check_intent_drift_above_threshold(self, mock_agent_context):
         """Test drift check with high drift (should stop workflow)"""
-        from cavia_common import AgentTaskV2, StructuredIntent, IntentValidation
+        from agents_common import AgentTaskV2, StructuredIntent, IntentValidation
 
         intent = StructuredIntent(
             intent_id="intent-001",

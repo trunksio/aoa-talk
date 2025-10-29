@@ -12,8 +12,6 @@ from io import BytesIO
 from agents_common import (
     AgentContext,
     start_worker,
-)
-from cavia_common import (
     AgentTask,
     AgentTaskResult,
     CVEvaluationReport,
@@ -63,7 +61,7 @@ class ReporterAgent:
             agent_id=agent_id or f"reporter-{os.urandom(4).hex()}",
             agent_type="reporter",
             agent_info_provider=self.get_agent_info,
-            task_processor=self.process_task
+            task_processor=self.process_task,
         )
 
         # Setup logging from context
@@ -74,7 +72,10 @@ class ReporterAgent:
         self.db = get_db_manager()
         self.minio = get_minio_client()
 
-        self.logger.info("ReporterAgent initialized with explicit lifecycle", agent_id=self.ctx.agent_id)
+        self.logger.info(
+            "ReporterAgent initialized with explicit lifecycle",
+            agent_id=self.ctx.agent_id,
+        )
 
     def get_agent_info(self) -> Dict[str, Any]:
         """Return agent metadata for registration"""
@@ -127,7 +128,9 @@ class ReporterAgent:
             criteria = self._load_active_criteria()
 
             # Generate report using LLM
-            report_data = self._generate_report_with_llm(parsed_cv, evaluations, criteria)
+            report_data = self._generate_report_with_llm(
+                parsed_cv, evaluations, criteria
+            )
 
             # Calculate weighted overall score
             overall_score = self._calculate_weighted_score(evaluations, criteria)
@@ -209,24 +212,28 @@ class ReporterAgent:
             with self.db.get_session() as session:
                 from sqlalchemy import text
 
-                query = text("""
+                query = text(
+                    """
                     SELECT criterion_id, name, description, evaluation_prompt, weight
                     FROM evaluation_criteria
                     WHERE is_active = true
                     ORDER BY weight DESC
-                """)
+                """
+                )
 
                 result = session.execute(query)
                 criteria = []
 
                 for row in result:
-                    criteria.append({
-                        "criterion_id": row[0],
-                        "name": row[1],
-                        "description": row[2],
-                        "evaluation_prompt": row[3],
-                        "weight": row[4],
-                    })
+                    criteria.append(
+                        {
+                            "criterion_id": row[0],
+                            "name": row[1],
+                            "description": row[2],
+                            "evaluation_prompt": row[3],
+                            "weight": row[4],
+                        }
+                    )
 
                 return criteria
 
@@ -235,9 +242,7 @@ class ReporterAgent:
             raise
 
     def _calculate_weighted_score(
-        self,
-        evaluations: List[Dict[str, Any]],
-        criteria: List[Dict[str, Any]]
+        self, evaluations: List[Dict[str, Any]], criteria: List[Dict[str, Any]]
     ) -> float:
         """Calculate weighted overall score from evaluations"""
         # Create criterion_id -> weight mapping
@@ -266,7 +271,7 @@ class ReporterAgent:
         self,
         parsed_cv: dict,
         evaluations: List[Dict[str, Any]],
-        criteria: List[Dict[str, Any]]
+        criteria: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """
         Generate report using LLM.
@@ -288,7 +293,7 @@ class ReporterAgent:
             # Call Ollama
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ]
 
             response = self.ollama.chat(
@@ -318,12 +323,12 @@ class ReporterAgent:
         Handles cases where LLM wraps JSON in markdown code blocks.
         """
         # Try to extract JSON from markdown code blocks
-        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response, re.DOTALL)
+        json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response, re.DOTALL)
         if json_match:
             json_str = json_match.group(1)
         else:
             # Try to find raw JSON
-            json_match = re.search(r'(\{.*\})', response, re.DOTALL)
+            json_match = re.search(r"(\{.*\})", response, re.DOTALL)
             if json_match:
                 json_str = json_match.group(1)
             else:
@@ -333,7 +338,9 @@ class ReporterAgent:
             report_data = json.loads(json_str)
             return report_data
         except json.JSONDecodeError as e:
-            self.logger.error("Failed to parse LLM JSON response", response=response[:500])
+            self.logger.error(
+                "Failed to parse LLM JSON response", response=response[:500]
+            )
             raise ValueError(f"Invalid JSON in LLM response: {e}")
 
     def _validate_report(self, report_data: Dict[str, Any]):
@@ -344,7 +351,7 @@ class ReporterAgent:
             "summary",
             "strengths",
             "concerns",
-            "rationale"
+            "rationale",
         ]
 
         for field in required_fields:
@@ -361,10 +368,7 @@ class ReporterAgent:
             raise ValueError(f"Overall score must be between 0-100, got: {score}")
 
     def _enqueue_to_db_writer(
-        self,
-        job_id: str,
-        final_report: Dict[str, Any],
-        task: AgentTask
+        self, job_id: str, final_report: Dict[str, Any], task: AgentTask
     ):
         """Enqueue to db-writer worker for final database persistence"""
         try:
@@ -391,14 +395,16 @@ class ReporterAgent:
             job = db_queue.enqueue(
                 "main.process_db_task",
                 task_dict,
-                job_timeout='5m',
+                job_timeout="5m",
                 result_ttl=3600,
             )
 
             self.logger.info("Enqueued to db-writer", job_id=job_id, rq_job_id=job.id)
 
         except Exception as e:
-            self.logger.error("Failed to enqueue to db-writer", job_id=job_id, error=str(e))
+            self.logger.error(
+                "Failed to enqueue to db-writer", job_id=job_id, error=str(e)
+            )
             # Don't raise - report generation was successful
 
     def _store_markdown_report(self, job_id: str, markdown: str) -> str:
@@ -410,11 +416,13 @@ class ReporterAgent:
             self.minio.upload_file(
                 bucket_name="cvs-processed",
                 object_name=storage_path,
-                file_data=BytesIO(markdown.encode('utf-8')),
+                file_data=BytesIO(markdown.encode("utf-8")),
                 content_type="text/markdown",
             )
 
-            self.logger.debug("Markdown report stored in MinIO", storage_path=storage_path)
+            self.logger.debug(
+                "Markdown report stored in MinIO", storage_path=storage_path
+            )
             return storage_path
 
         except Exception as e:

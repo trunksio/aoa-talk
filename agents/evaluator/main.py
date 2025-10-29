@@ -14,8 +14,6 @@ from agents_common import (
     AgentContext,
     start_worker,
     enqueue_to_next_agent,
-)
-from cavia_common import (
     AgentTask,
     AgentTaskResult,
     EvaluationResult,
@@ -61,7 +59,7 @@ class EvaluatorAgent:
             agent_id=agent_id or f"evaluator-{os.urandom(4).hex()}",
             agent_type="evaluator",
             agent_info_provider=self.get_agent_info,
-            task_processor=self.process_task
+            task_processor=self.process_task,
         )
 
         # Setup logging from context
@@ -75,14 +73,14 @@ class EvaluatorAgent:
         # Ollama provides an OpenAI-compatible API endpoint
         openai_client = OpenAI(
             base_url=f"{self.ctx.settings.ollama_host}/v1",
-            api_key="ollama"  # Ollama doesn't require a real API key
+            api_key="ollama",  # Ollama doesn't require a real API key
         )
         self.instructor_client = instructor.from_openai(openai_client)
 
         self.logger.info(
             "EvaluatorAgent initialized with explicit lifecycle",
             agent_id=self.ctx.agent_id,
-            ollama_model=self.ctx.settings.ollama_model
+            ollama_model=self.ctx.settings.ollama_model,
         )
 
     def get_agent_info(self) -> Dict[str, Any]:
@@ -138,16 +136,14 @@ class EvaluatorAgent:
             self.logger.info(
                 "Loaded evaluation criteria",
                 count=len(criteria),
-                criteria_names=[c["name"] for c in criteria]
+                criteria_names=[c["name"] for c in criteria],
             )
 
             # Evaluate against each criterion
             evaluation_results = []
             for criterion in criteria:
                 self.logger.info(
-                    "Evaluating criterion",
-                    job_id=job_id,
-                    criterion=criterion["name"]
+                    "Evaluating criterion", job_id=job_id, criterion=criterion["name"]
                 )
 
                 # Build evaluation prompt with CoT instructions
@@ -188,7 +184,7 @@ class EvaluatorAgent:
                         ],
                         "key_strengths": structured_eval.key_strengths,
                         "key_weaknesses": structured_eval.key_weaknesses,
-                    }
+                    },
                 )
 
                 # Store in database
@@ -202,7 +198,7 @@ class EvaluatorAgent:
                     score=eval_result.score,
                     confidence=eval_result.confidence,
                     reasoning_steps=len(structured_eval.reasoning_steps),
-                    sub_criteria_count=len(structured_eval.sub_criteria)
+                    sub_criteria_count=len(structured_eval.sub_criteria),
                 )
 
             execution_time = time.time() - start_time
@@ -216,7 +212,9 @@ class EvaluatorAgent:
             )
 
             # Enqueue to reporter using semantic discovery
-            self._enqueue_to_reporter(job_id, parsed_cv, storage_path, evaluation_results, task)
+            self._enqueue_to_reporter(
+                job_id, parsed_cv, storage_path, evaluation_results, task
+            )
 
             return AgentTaskResult(
                 task_id=task.task_id,
@@ -249,7 +247,9 @@ class EvaluatorAgent:
                 execution_time=execution_time,
             )
 
-    def _evaluate_with_llm(self, prompt: str, criterion_name: str) -> StructuredEvaluation:
+    def _evaluate_with_llm(
+        self, prompt: str, criterion_name: str
+    ) -> StructuredEvaluation:
         """
         Call Ollama LLM to evaluate CV with Chain-of-Thought reasoning.
 
@@ -263,19 +263,23 @@ class EvaluatorAgent:
         Returns:
             StructuredEvaluation with reasoning steps, sub-criteria, and final scores
         """
-        self.logger.debug("Calling LLM for evaluation with Instructor", criterion=criterion_name)
+        self.logger.debug(
+            "Calling LLM for evaluation with Instructor", criterion=criterion_name
+        )
 
         try:
             # Call Instructor-patched Ollama with StructuredEvaluation response model
-            evaluation: StructuredEvaluation = self.instructor_client.chat.completions.create(
-                model=self.ctx.settings.ollama_model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
-                ],
-                response_model=StructuredEvaluation,
-                temperature=0.3,  # Low temperature for consistency
-                max_retries=3,  # Instructor will retry on validation failures
+            evaluation: StructuredEvaluation = (
+                self.instructor_client.chat.completions.create(
+                    model=self.ctx.settings.ollama_model,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                    response_model=StructuredEvaluation,
+                    temperature=0.3,  # Low temperature for consistency
+                    max_retries=3,  # Instructor will retry on validation failures
+                )
             )
 
             self.logger.debug(
@@ -284,7 +288,7 @@ class EvaluatorAgent:
                 reasoning_steps=len(evaluation.reasoning_steps),
                 sub_criteria=len(evaluation.sub_criteria),
                 overall_score=evaluation.overall_score,
-                confidence=evaluation.confidence
+                confidence=evaluation.confidence,
             )
 
             return evaluation
@@ -294,7 +298,7 @@ class EvaluatorAgent:
                 "LLM evaluation error",
                 criterion=criterion_name,
                 error=str(e),
-                error_type=type(e).__name__
+                error_type=type(e).__name__,
             )
             raise
 
@@ -304,24 +308,28 @@ class EvaluatorAgent:
             with self.db.get_session() as session:
                 from sqlalchemy import text
 
-                query = text("""
+                query = text(
+                    """
                     SELECT criterion_id, name, description, evaluation_prompt, weight
                     FROM evaluation_criteria
                     WHERE is_active = true
                     ORDER BY weight DESC
-                """)
+                """
+                )
 
                 result = session.execute(query)
                 criteria = []
 
                 for row in result:
-                    criteria.append({
-                        "criterion_id": row[0],
-                        "name": row[1],
-                        "description": row[2],
-                        "evaluation_prompt": row[3],
-                        "weight": row[4],
-                    })
+                    criteria.append(
+                        {
+                            "criterion_id": row[0],
+                            "name": row[1],
+                            "description": row[2],
+                            "evaluation_prompt": row[3],
+                            "weight": row[4],
+                        }
+                    )
 
                 return criteria
 
@@ -335,7 +343,8 @@ class EvaluatorAgent:
             with self.db.get_session() as session:
                 from sqlalchemy import text
 
-                query = text("""
+                query = text(
+                    """
                     INSERT INTO cv_evaluations (
                         job_id,
                         criterion_id,
@@ -355,7 +364,8 @@ class EvaluatorAgent:
                         :reasoning,
                         CAST(:metadata AS jsonb)
                     )
-                """)
+                """
+                )
 
                 session.execute(
                     query,
@@ -368,7 +378,7 @@ class EvaluatorAgent:
                         "evidence": evaluation.evidence,
                         "reasoning": evaluation.reasoning,
                         "metadata": json.dumps(evaluation.metadata),
-                    }
+                    },
                 )
                 session.commit()
 
@@ -384,7 +394,7 @@ class EvaluatorAgent:
         parsed_cv: dict,
         storage_path: str,
         evaluation_results: list,
-        task: AgentTask
+        task: AgentTask,
     ):
         """Discover and enqueue to reporter agent using semantic discovery"""
         try:
@@ -403,16 +413,22 @@ class EvaluatorAgent:
                     "evaluations": evaluations_data,
                 },
                 intent=task.intent or "Process CV and determine acceptance",
-                steps_completed=task.steps_completed
+                steps_completed=task.steps_completed,
             )
 
             if job_id_result:
-                self.logger.info("Enqueued to reporter via semantic discovery", job_id=job_id, rq_job_id=job_id_result)
+                self.logger.info(
+                    "Enqueued to reporter via semantic discovery",
+                    job_id=job_id,
+                    rq_job_id=job_id_result,
+                )
             else:
                 self.logger.warning("Failed to enqueue to reporter", job_id=job_id)
 
         except Exception as e:
-            self.logger.error("Failed to enqueue to reporter", job_id=job_id, error=str(e))
+            self.logger.error(
+                "Failed to enqueue to reporter", job_id=job_id, error=str(e)
+            )
             # Don't raise - evaluation was successful even if enqueueing failed
 
 

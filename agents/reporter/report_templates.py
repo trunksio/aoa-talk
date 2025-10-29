@@ -18,9 +18,7 @@ Be professional, objective, and constructive in your feedback.
 
 
 def build_report_prompt(
-    parsed_cv: dict,
-    evaluations: List[Dict[str, Any]],
-    criteria: List[Dict[str, Any]]
+    parsed_cv: dict, evaluations: List[Dict[str, Any]], criteria: List[Dict[str, Any]]
 ) -> str:
     """
     Build prompt for LLM to generate evaluation report.
@@ -46,7 +44,7 @@ def build_report_prompt(
         # Find matching criterion
         criterion = next(
             (c for c in criteria if c["criterion_id"] == eval_result["criterion_id"]),
-            None
+            None,
         )
 
         if not criterion:
@@ -124,7 +122,7 @@ def format_markdown_report(
     candidate_name: str,
     report_data: Dict[str, Any],
     evaluations: List[Dict[str, Any]],
-    criteria: List[Dict[str, Any]]
+    criteria: List[Dict[str, Any]],
 ) -> str:
     """
     Format the report as a Markdown document.
@@ -190,7 +188,7 @@ def format_markdown_report(
     for eval_result in evaluations:
         criterion = next(
             (c for c in criteria if c["criterion_id"] == eval_result["criterion_id"]),
-            None
+            None,
         )
 
         if not criterion:
