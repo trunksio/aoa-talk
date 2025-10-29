@@ -9,7 +9,6 @@ directly to manage its lifecycle.
 import os
 import sys
 import time
-import uuid
 import signal
 from typing import Any, Dict, Optional, Callable
 from threading import Thread
@@ -39,12 +38,13 @@ class AgentContext:
     This replaces the BaseAgent's instance variables with an explicit context
     that agents manage themselves.
     """
+
     def __init__(
         self,
         agent_id: str,
         agent_type: str,
         agent_info_provider: Callable[[], Dict[str, Any]],
-        task_processor: Callable[[Any], AgentTaskResult]
+        task_processor: Callable[[Any], AgentTaskResult],
     ):
         """
         Initialize agent context.
@@ -75,7 +75,11 @@ class AgentContext:
         self.heartbeat_thread: Optional[Thread] = None
         self.running = False
 
-        self.logger.info("Agent context initialized", agent_id=self.agent_id, agent_type=self.agent_type)
+        self.logger.info(
+            "Agent context initialized",
+            agent_id=self.agent_id,
+            agent_type=self.agent_type,
+        )
 
     def get_queue_name(self) -> str:
         """Get the queue name for this agent type"""
@@ -84,7 +88,7 @@ class AgentContext:
             "evaluator": self.settings.queue_evaluation,
             "orchestrator": self.settings.queue_orchestration,
             "reporter": self.settings.queue_reporting,
-            "ocr": getattr(self.settings, 'queue_ocr', 'queue-ocr'),
+            "ocr": getattr(self.settings, "queue_ocr", "queue-ocr"),
         }
         return queue_mapping.get(self.agent_type, f"queue-{self.agent_type}")
 
@@ -104,6 +108,36 @@ def register_agent(ctx: AgentContext) -> bool:
 
         info = ctx.agent_info_provider()
 
+        # Transform capabilities dict into List[Capability] format expected by registry
+        # Agent info providers return capabilities as a dict, but registry expects list of Capability objects
+        capabilities_dict = info.get("capabilities", {})
+        capabilities_list = []
+
+        # Create a single capability entry that encompasses all agent capabilities
+        if capabilities_dict:
+            capabilities_list.append(
+                {
+                    "name": f"{ctx.agent_type}_capabilities",
+                    "description": info["description"],
+                    "input_types": capabilities_dict.get("supported_formats", []),
+                    "output_types": capabilities_dict.get(
+                        "extraction_features",
+                        capabilities_dict.get("evaluation_types", []),
+                    ),
+                    "parameters": {
+                        k: v
+                        for k, v in capabilities_dict.items()
+                        if k
+                        not in [
+                            "supported_formats",
+                            "extraction_features",
+                            "evaluation_types",
+                        ]
+                    },
+                    "metadata": {},
+                }
+            )
+
         # Call registry HTTP API using correct payload structure
         registry_url = os.getenv("REGISTRY_URL", "http://registry:8001")
         payload = {
@@ -112,7 +146,7 @@ def register_agent(ctx: AgentContext) -> bool:
                 "name": info["name"],
                 "description": info["description"],
                 "agent_type": ctx.agent_type,
-                "capabilities": info["capabilities"],
+                "capabilities": capabilities_list,
                 "version": "1.0.0",
                 "status": "active",
                 "metadata": {"queue_name": ctx.get_queue_name()},
@@ -148,6 +182,7 @@ def start_heartbeat(ctx: AgentContext) -> None:
     Args:
         ctx: Agent context
     """
+
     def heartbeat_loop():
         while ctx.running:
             try:
@@ -184,6 +219,7 @@ def setup_signal_handlers(ctx: AgentContext) -> None:
     Args:
         ctx: Agent context
     """
+
     def signal_handler(signum, frame):
         ctx.logger.info("Shutdown signal received", signal=signum)
         stop_heartbeat(ctx)
@@ -240,6 +276,7 @@ def start_worker(ctx: AgentContext) -> None:
 
 # Intent validation functions
 
+
 def validate_intent(ctx: AgentContext, task: AgentTaskV2) -> IntentValidation:
     """
     Validate that the agent's work aligns with the intent.
@@ -254,10 +291,6 @@ def validate_intent(ctx: AgentContext, task: AgentTaskV2) -> IntentValidation:
         IntentValidation with alignment and drift scores
     """
     try:
-        # Get agent capabilities
-        agent_info = ctx.agent_info_provider()
-        agent_capabilities = agent_info.get("description", "")
-
         # Simple heuristic validation (can be enhanced with LLM)
         intent = task.intent
         goal_lower = intent.goal.lower()
@@ -270,11 +303,19 @@ def validate_intent(ctx: AgentContext, task: AgentTaskV2) -> IntentValidation:
             "ocr": ["ocr", "scan", "image", "picture", "photo"],
             "evaluator": ["evaluate", "assess", "score", "judge", "criteria"],
             "reporter": ["report", "summary", "decision", "output"],
-            "expense_evaluator": ["expense", "receipt", "invoice", "reimburse", "policy"]
+            "expense_evaluator": [
+                "expense",
+                "receipt",
+                "invoice",
+                "reimburse",
+                "policy",
+            ],
         }
 
         relevant_keywords = alignment_keywords.get(agent_type, [])
-        keyword_matches = sum(1 for kw in relevant_keywords if kw in goal_lower or kw in workflow_lower)
+        keyword_matches = sum(
+            1 for kw in relevant_keywords if kw in goal_lower or kw in workflow_lower
+        )
         alignment_score = min(1.0, keyword_matches / max(len(relevant_keywords), 1))
 
         # Drift score = 1 - alignment (higher drift = lower alignment)
@@ -283,23 +324,31 @@ def validate_intent(ctx: AgentContext, task: AgentTaskV2) -> IntentValidation:
         # Check if previous agents have high drift
         avg_previous_drift = 0.0
         if task.intent_validations:
-            avg_previous_drift = sum(v.drift_score for v in task.intent_validations) / len(task.intent_validations)
+            avg_previous_drift = sum(
+                v.drift_score for v in task.intent_validations
+            ) / len(task.intent_validations)
 
         # Cumulative drift
         cumulative_drift = (avg_previous_drift + drift_score) / 2
 
         is_aligned = alignment_score >= 0.5
 
-        reasoning = f"Agent '{agent_type}' processing '{intent.workflow_type}' workflow. "
+        reasoning = (
+            f"Agent '{agent_type}' processing '{intent.workflow_type}' workflow. "
+        )
         reasoning += f"Keyword alignment: {alignment_score:.2f}. "
         if not is_aligned:
-            reasoning += f"WARNING: Low alignment detected. Agent may not be suited for this intent."
+            reasoning += "WARNING: Low alignment detected. Agent may not be suited for this intent."
 
         suggestions = []
         if drift_score > 0.5:
-            suggestions.append(f"Consider routing to agent better suited for '{intent.goal}'")
+            suggestions.append(
+                f"Consider routing to agent better suited for '{intent.goal}'"
+            )
         if cumulative_drift > 0.4:
-            suggestions.append("Significant cumulative drift detected across agent chain")
+            suggestions.append(
+                "Significant cumulative drift detected across agent chain"
+            )
 
         return IntentValidation(
             agent_id=ctx.agent_id,
@@ -308,7 +357,7 @@ def validate_intent(ctx: AgentContext, task: AgentTaskV2) -> IntentValidation:
             alignment_score=alignment_score,
             drift_score=cumulative_drift,
             reasoning=reasoning,
-            suggestions=suggestions
+            suggestions=suggestions,
         )
 
     except Exception as e:
@@ -321,7 +370,7 @@ def validate_intent(ctx: AgentContext, task: AgentTaskV2) -> IntentValidation:
             alignment_score=0.5,
             drift_score=0.5,
             reasoning=f"Validation error: {str(e)}",
-            suggestions=["Manual review recommended due to validation error"]
+            suggestions=["Manual review recommended due to validation error"],
         )
 
 
@@ -350,7 +399,9 @@ def check_intent_drift(task: AgentTaskV2, threshold: float = 0.4) -> bool:
     return avg_drift > threshold or max_drift > 0.7
 
 
-def update_intent_context(task: AgentTaskV2, ctx: AgentContext, updates: Dict[str, Any]) -> None:
+def update_intent_context(
+    task: AgentTaskV2, ctx: AgentContext, updates: Dict[str, Any]
+) -> None:
     """
     Update the intent context with information from agent's processing.
 
@@ -366,7 +417,10 @@ def update_intent_context(task: AgentTaskV2, ctx: AgentContext, updates: Dict[st
 
 # Agent discovery and chaining functions
 
-def discover_next_agent(ctx: AgentContext, capability_query: str) -> Optional[Dict[str, str]]:
+
+def discover_next_agent(
+    ctx: AgentContext, capability_query: str
+) -> Optional[Dict[str, str]]:
     """
     Discover the next agent via HTTP call to agent-registry service.
 
@@ -397,25 +451,31 @@ def discover_next_agent(ctx: AgentContext, capability_query: str) -> Optional[Di
         results = data.get("results", [])
 
         if not results:
-            ctx.logger.warning("No agent found for capability", capability=capability_query)
+            ctx.logger.warning(
+                "No agent found for capability", capability=capability_query
+            )
             return None
 
         # Filter out the calling agent to prevent self-enqueueing
         current_agent_type = ctx.agent_type
-        filtered_agents = [res for res in results if res.get("agent_type") != current_agent_type]
+        filtered_agents = [
+            res for res in results if res.get("agent_type") != current_agent_type
+        ]
 
         if not filtered_agents:
             ctx.logger.warning(
                 "No suitable agent found (all matches were self)",
                 capability=capability_query,
-                current_agent=current_agent_type
+                current_agent=current_agent_type,
             )
             return None
 
         # Get top result
         top = filtered_agents[0]
         agent_type = top.get("agent_type")
-        queue_name = (top.get("metadata") or {}).get("queue_name", f"queue-{agent_type}")
+        queue_name = (top.get("metadata") or {}).get(
+            "queue_name", f"queue-{agent_type}"
+        )
 
         ctx.logger.info(
             "Discovered next agent",
@@ -425,13 +485,12 @@ def discover_next_agent(ctx: AgentContext, capability_query: str) -> Optional[Di
             similarity=top.get("similarity_score"),
         )
 
-        return {
-            "agent_type": agent_type,
-            "queue_name": queue_name
-        }
+        return {"agent_type": agent_type, "queue_name": queue_name}
 
     except Exception as e:
-        ctx.logger.error("Failed to discover next agent", capability=capability_query, error=str(e))
+        ctx.logger.error(
+            "Failed to discover next agent", capability=capability_query, error=str(e)
+        )
         return None
 
 
@@ -442,7 +501,7 @@ def enqueue_to_next_agent(
     payload: Dict[str, Any],
     intent: Any,
     steps_completed: list[str],
-    intent_validations: Optional[list] = None
+    intent_validations: Optional[list] = None,
 ) -> Optional[str]:
     """
     Discover and enqueue task to the next agent in the chain.
@@ -487,18 +546,18 @@ def enqueue_to_next_agent(
             task_dict["intent_validations"] = intent_validations
 
         # Enqueue to discovered agent's queue
-        queue = Queue(next_agent['queue_name'], connection=ctx.redis_conn)
+        queue = Queue(next_agent["queue_name"], connection=ctx.redis_conn)
         job = queue.enqueue(
             "agents_common.lifecycle.process_agent_task",
             task_dict,
-            job_timeout='15m',
+            job_timeout="15m",
             result_ttl=3600,
         )
 
         ctx.logger.info(
             "Enqueued to next agent",
-            next_agent_type=next_agent['agent_type'],
-            queue=next_agent['queue_name'],
+            next_agent_type=next_agent["agent_type"],
+            queue=next_agent["queue_name"],
             job_id=job.id,
         )
 
@@ -548,12 +607,15 @@ def process_agent_task(task_dict: Dict[str, Any]) -> Dict[str, Any]:
     # Determine task type and deserialize appropriately
     try:
         # Try AgentTaskV2 first (has 'intent' as dict with 'intent_id')
-        if isinstance(task_dict.get('intent'), dict) and 'intent_id' in task_dict['intent']:
+        if (
+            isinstance(task_dict.get("intent"), dict)
+            and "intent_id" in task_dict["intent"]
+        ):
             task = AgentTaskV2(**task_dict)
         else:
             # Fall back to legacy AgentTask (intent is string)
             task = AgentTask(**task_dict)
-    except Exception as e:
+    except Exception:
         # If deserialization fails, try legacy format
         task = AgentTask(**task_dict)
 
@@ -561,4 +623,4 @@ def process_agent_task(task_dict: Dict[str, Any]) -> Dict[str, Any]:
     result = _agent_context.task_processor(task)
 
     # Return result as dict
-    return result.dict() if hasattr(result, 'dict') else result
+    return result.dict() if hasattr(result, "dict") else result

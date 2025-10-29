@@ -13,8 +13,7 @@ from .register_on_start import register_agent_from_manifest
 
 # Re-export all shared utilities from cavia_common
 # This allows agents to import everything from agents_common
-import sys
-sys.path.insert(0, "/shared")
+# Note: cavia_common is installed via pip, no sys.path manipulation needed
 
 
 __version__ = "1.0.0"
