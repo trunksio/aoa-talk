@@ -14,7 +14,6 @@ import instructor
 from openai import OpenAI
 
 from agents_common import (
-    BaseAgent,
     AgentTask,
     AgentTaskResult,
     EvaluationResult,
@@ -23,6 +22,10 @@ from agents_common import (
     setup_logging,
     get_ollama_client,
     get_db_manager,
+    # Explicit lifecycle management
+    AgentContext,
+    start_worker,
+    enqueue_to_next_agent,
 )
 
 from prompts import SYSTEM_PROMPT, build_evaluation_prompt
@@ -32,7 +35,7 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-class EvaluatorAgent(BaseAgent):
+class EvaluatorAgent:
     """
     Agentic Unit for evaluating CVs using LLM.
 
@@ -42,10 +45,29 @@ class EvaluatorAgent(BaseAgent):
     - Call Ollama LLM for evaluation
     - Parse and validate response
     - Store EvaluationResult in database
+
+    No longer inherits from BaseAgent - uses explicit lifecycle management.
     """
 
     def __init__(self, agent_id: str = None):
-        super().__init__(agent_id)
+        """
+        Initialize EvaluatorAgent with explicit setup.
+
+        Args:
+            agent_id: Optional agent identifier (auto-generated if not provided)
+        """
+        import os
+
+        # Create agent context with explicit lifecycle management
+        self.ctx = AgentContext(
+            agent_id=agent_id or f"evaluator-{os.urandom(4).hex()}",
+            agent_type="evaluator",
+            agent_info_provider=self.get_agent_info,
+            task_processor=self.process_task
+        )
+
+        # Setup logging from context
+        self.logger = self.ctx.logger
 
         # Initialize Ollama client
         self.ollama = get_ollama_client()
@@ -54,20 +76,16 @@ class EvaluatorAgent(BaseAgent):
         # Initialize Instructor client for structured outputs
         # Ollama provides an OpenAI-compatible API endpoint
         openai_client = OpenAI(
-            base_url=f"{self.settings.ollama_host}/v1",
+            base_url=f"{self.ctx.settings.ollama_host}/v1",
             api_key="ollama"  # Ollama doesn't require a real API key
         )
         self.instructor_client = instructor.from_openai(openai_client)
 
         self.logger.info(
-            "EvaluatorAgent initialized with Instructor",
-            agent_id=self.agent_id,
-            ollama_model=self.settings.ollama_model
+            "EvaluatorAgent initialized with explicit lifecycle",
+            agent_id=self.ctx.agent_id,
+            ollama_model=self.ctx.settings.ollama_model
         )
-
-    def get_agent_type(self) -> str:
-        """Return the agent type"""
-        return "evaluator"
 
     def get_agent_info(self) -> Dict[str, Any]:
         """Return agent metadata for registration"""
@@ -76,7 +94,7 @@ class EvaluatorAgent(BaseAgent):
             "description": "LLM-based evaluation of CVs against configurable criteria",
             "capabilities": {
                 "evaluation_types": ["criterion-based"],
-                "llm_model": self.settings.ollama_model,
+                "llm_model": self.ctx.settings.ollama_model,
                 "scoring_range": "0-100",
                 "output_format": "structured_json",
                 "version": "1.0.0",
@@ -159,7 +177,7 @@ class EvaluatorAgent(BaseAgent):
                 # Create EvaluationResult for database storage
                 eval_result = EvaluationResult(
                     criterion_id=criterion["criterion_id"],
-                    agent_id=self.agent_id,
+                    agent_id=self.ctx.agent_id,
                     score=float(structured_eval.overall_score),
                     confidence=structured_eval.confidence,
                     evidence=combined_evidence,
@@ -204,7 +222,7 @@ class EvaluatorAgent(BaseAgent):
 
             return AgentTaskResult(
                 task_id=task.task_id,
-                agent_id=self.agent_id,
+                agent_id=self.ctx.agent_id,
                 status="success",
                 result={
                     "job_id": job_id,
@@ -227,7 +245,7 @@ class EvaluatorAgent(BaseAgent):
 
             return AgentTaskResult(
                 task_id=task.task_id,
-                agent_id=self.agent_id,
+                agent_id=self.ctx.agent_id,
                 status="error",
                 error=str(e),
                 execution_time=execution_time,
@@ -252,7 +270,7 @@ class EvaluatorAgent(BaseAgent):
         try:
             # Call Instructor-patched Ollama with StructuredEvaluation response model
             evaluation: StructuredEvaluation = self.instructor_client.chat.completions.create(
-                model=self.settings.ollama_model,
+                model=self.ctx.settings.ollama_model,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
@@ -375,8 +393,9 @@ class EvaluatorAgent(BaseAgent):
             # Convert evaluation results to dicts
             evaluations_data = [e.model_dump() for e in evaluation_results]
 
-            # Use semantic discovery to find reporter agent
-            job_id_result = self.enqueue_to_next_agent(
+            # Use semantic discovery to find reporter agent (explicit call)
+            job_id_result = enqueue_to_next_agent(
+                ctx=self.ctx,
                 capability_query="generate comprehensive CV evaluation report with acceptance decision",
                 task_type="generate_report",
                 payload={
@@ -400,23 +419,34 @@ class EvaluatorAgent(BaseAgent):
 
 
 def main():
-    """Main entry point for the Evaluator Agent"""
+    """
+    Main entry point for the Evaluator Agent.
+
+    Demonstrates explicit startup lifecycle:
+    1. Create agent instance
+    2. Start worker (registers, starts heartbeat, runs RQ loop)
+    """
     import os
 
     # Get agent ID from environment
     agent_id = os.getenv("AGENT_ID", "evaluator-001")
 
-    # Create and start agent
+    # Create agent with explicit initialization
     agent = EvaluatorAgent(agent_id=agent_id)
 
     logger.info(
-        "Starting Evaluator Agent worker",
-        agent_id=agent.agent_id,
-        agent_type=agent.get_agent_type(),
+        "Starting Evaluator Agent worker with explicit lifecycle",
+        agent_id=agent.ctx.agent_id,
+        agent_type=agent.ctx.agent_type,
     )
 
-    # Start the RQ worker (blocking call)
-    agent.start_worker()
+    # Start the worker (explicit lifecycle management)
+    # This will:
+    # 1. Register agent with agent-registry
+    # 2. Start heartbeat thread
+    # 3. Setup signal handlers
+    # 4. Start RQ worker loop (blocking)
+    start_worker(agent.ctx)
 
 
 if __name__ == "__main__":

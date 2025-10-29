@@ -13,7 +13,6 @@ from io import BytesIO
 sys.path.insert(0, "/agents_common")
 
 from agents_common import (
-    BaseAgent,
     AgentTask,
     AgentTaskResult,
     CVEvaluationReport,
@@ -22,6 +21,9 @@ from agents_common import (
     get_ollama_client,
     get_db_manager,
     get_minio_client,
+    # Explicit lifecycle management
+    AgentContext,
+    start_worker,
 )
 
 from report_templates import (
@@ -35,7 +37,7 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-class ReporterAgent(BaseAgent):
+class ReporterAgent:
     """
     Agentic Unit for generating CV evaluation reports.
 
@@ -45,21 +47,36 @@ class ReporterAgent(BaseAgent):
     - Determine SUITABLE/REJECTED recommendation
     - Store report in database and MinIO
     - Format report as Markdown
+
+    No longer inherits from BaseAgent - uses explicit lifecycle management.
     """
 
     def __init__(self, agent_id: str = None):
-        super().__init__(agent_id)
+        """
+        Initialize ReporterAgent with explicit setup.
+
+        Args:
+            agent_id: Optional agent identifier (auto-generated if not provided)
+        """
+        import os
+
+        # Create agent context with explicit lifecycle management
+        self.ctx = AgentContext(
+            agent_id=agent_id or f"reporter-{os.urandom(4).hex()}",
+            agent_type="reporter",
+            agent_info_provider=self.get_agent_info,
+            task_processor=self.process_task
+        )
+
+        # Setup logging from context
+        self.logger = self.ctx.logger
 
         # Initialize clients
         self.ollama = get_ollama_client()
         self.db = get_db_manager()
         self.minio = get_minio_client()
 
-        self.logger.info("ReporterAgent initialized", agent_id=self.agent_id)
-
-    def get_agent_type(self) -> str:
-        """Return the agent type"""
-        return "reporter"
+        self.logger.info("ReporterAgent initialized with explicit lifecycle", agent_id=self.ctx.agent_id)
 
     def get_agent_info(self) -> Dict[str, Any]:
         """Return agent metadata for registration"""
@@ -68,7 +85,7 @@ class ReporterAgent(BaseAgent):
             "description": "Generates comprehensive evaluation reports with LLM-based synthesis",
             "capabilities": {
                 "report_formats": ["json", "markdown"],
-                "llm_model": self.settings.ollama_model,
+                "llm_model": self.ctx.settings.ollama_model,
                 "recommendation_types": ["suitable", "rejected"],
                 "version": "1.0.0",
             },
@@ -158,7 +175,7 @@ class ReporterAgent(BaseAgent):
 
             return AgentTaskResult(
                 task_id=task.task_id,
-                agent_id=self.agent_id,
+                agent_id=self.ctx.agent_id,
                 status="success",
                 result={
                     "job_id": job_id,
@@ -182,7 +199,7 @@ class ReporterAgent(BaseAgent):
 
             return AgentTaskResult(
                 task_id=task.task_id,
-                agent_id=self.agent_id,
+                agent_id=self.ctx.agent_id,
                 status="error",
                 error=str(e),
                 execution_time=execution_time,
@@ -357,7 +374,7 @@ class ReporterAgent(BaseAgent):
             from rq import Queue
 
             # Create db-writer queue
-            db_queue = Queue("db-writer", connection=self.redis_conn)
+            db_queue = Queue("db-writer", connection=self.ctx.redis_conn)
 
             # Create update_job_result task
             task_dict = {
@@ -369,7 +386,7 @@ class ReporterAgent(BaseAgent):
                     "result": final_report,
                 },
                 "intent": task.intent,
-                "steps_completed": task.steps_completed + [self.get_agent_type()],
+                "steps_completed": task.steps_completed + [self.ctx.agent_type],
             }
 
             # Enqueue to db-writer (non-agentic worker)
@@ -408,23 +425,34 @@ class ReporterAgent(BaseAgent):
 
 
 def main():
-    """Main entry point for the Reporter Agent"""
+    """
+    Main entry point for the Reporter Agent.
+
+    Demonstrates explicit startup lifecycle:
+    1. Create agent instance
+    2. Start worker (registers, starts heartbeat, runs RQ loop)
+    """
     import os
 
     # Get agent ID from environment
     agent_id = os.getenv("AGENT_ID", "reporter-001")
 
-    # Create and start agent
+    # Create agent with explicit initialization
     agent = ReporterAgent(agent_id=agent_id)
 
     logger.info(
-        "Starting Reporter Agent worker",
-        agent_id=agent.agent_id,
-        agent_type=agent.get_agent_type(),
+        "Starting Reporter Agent worker with explicit lifecycle",
+        agent_id=agent.ctx.agent_id,
+        agent_type=agent.ctx.agent_type,
     )
 
-    # Start the RQ worker (blocking call)
-    agent.start_worker()
+    # Start the worker (explicit lifecycle management)
+    # This will:
+    # 1. Register agent with agent-registry
+    # 2. Start heartbeat thread
+    # 3. Setup signal handlers
+    # 4. Start RQ worker loop (blocking)
+    start_worker(agent.ctx)
 
 
 if __name__ == "__main__":

@@ -52,7 +52,7 @@ from cavia_common import (
     get_minio_client,
     OllamaClient,
     get_ollama_client,
-    # Base agent
+    # Base agent (DEPRECATED)
     BaseAgent,
     # Workflows
     WorkflowTemplate,
@@ -60,6 +60,23 @@ from cavia_common import (
     list_workflow_templates,
     get_workflows_by_category,
     WORKFLOW_TEMPLATES,
+)
+
+# Import explicit lifecycle management (NEW PATTERN)
+from cavia_common.agent_lifecycle import (
+    AgentContext,
+    register_agent,
+    start_heartbeat,
+    stop_heartbeat,
+    setup_signal_handlers,
+    start_worker,
+    validate_intent,
+    check_intent_drift,
+    update_intent_context,
+    discover_next_agent,
+    enqueue_to_next_agent,
+    register_agent_context,
+    process_agent_task,
 )
 
 __version__ = "1.0.0"
@@ -106,8 +123,22 @@ __all__ = [
     "get_minio_client",
     "OllamaClient",
     "get_ollama_client",
-    # Base agent
+    # Base agent (DEPRECATED - use explicit lifecycle instead)
     "BaseAgent",
+    # Explicit lifecycle management (NEW PATTERN)
+    "AgentContext",
+    "register_agent",
+    "start_heartbeat",
+    "stop_heartbeat",
+    "setup_signal_handlers",
+    "start_worker",
+    "validate_intent",
+    "check_intent_drift",
+    "update_intent_context",
+    "discover_next_agent",
+    "enqueue_to_next_agent",
+    "register_agent_context",
+    "process_agent_task",
     # Workflows
     "WorkflowTemplate",
     "get_workflow_template",
