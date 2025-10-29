@@ -14,6 +14,11 @@ from typing import Any, Dict
 from pathlib import Path
 
 from agents_common import (
+    AgentContext,
+    start_worker,
+    enqueue_to_next_agent,
+)
+from cavia_common import (
     AgentTask,
     AgentTaskResult,
     ParsedCV,
@@ -21,10 +26,7 @@ from agents_common import (
     setup_logging,
     get_minio_client,
     get_db_manager,
-    # Explicit lifecycle management
-    AgentContext,
-    start_worker,
-    enqueue_to_next_agent,
+    get_ollama_client,
 )
 
 from ocr_processor import DeepSeekOCRProcessor
@@ -74,7 +76,7 @@ class OCRAgent:
         # Import here to avoid circular dependencies
         try:
             from parsers.llm_extractor import LLMCVExtractor
-            from agents_common import get_ollama_client
+            from cavia_common import get_ollama_client
 
             ollama_client = get_ollama_client()
             self.llm_extractor = LLMCVExtractor(ollama_client)
@@ -302,7 +304,7 @@ class OCRAgent:
             extracted_data = self.llm_extractor.extract_all_sections(raw_text)
         else:
             # Inline extraction logic (fallback)
-            from agents_common import get_ollama_client
+            from cavia_common import get_ollama_client
             extracted_data = self._extract_with_ollama_inline(raw_text)
 
         # Build ParsedCV object from LLM-extracted data
@@ -335,7 +337,7 @@ class OCRAgent:
     def _extract_with_ollama_inline(self, raw_text: str) -> dict:
         """Inline LLM extraction (fallback if LLMCVExtractor not available)"""
         import json
-        from agents_common import get_ollama_client
+        from cavia_common import get_ollama_client
 
         ollama = get_ollama_client()
 

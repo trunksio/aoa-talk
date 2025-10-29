@@ -10,6 +10,14 @@ from typing import Any, Dict
 from pathlib import Path
 
 from agents_common import (
+    AgentContext,
+    start_worker,
+    validate_intent,
+    check_intent_drift,
+    update_intent_context,
+    enqueue_to_next_agent,
+)
+from cavia_common import (
     AgentTask,
     AgentTaskV2,
     AgentTaskResult,
@@ -18,13 +26,6 @@ from agents_common import (
     setup_logging,
     get_minio_client,
     get_db_manager,
-    # Explicit lifecycle management
-    AgentContext,
-    start_worker,
-    validate_intent,
-    check_intent_drift,
-    update_intent_context,
-    enqueue_to_next_agent,
 )
 
 from parsers import PDFParser, DOCXParser, LLMCVExtractor
@@ -71,7 +72,7 @@ class ParserAgent:
         self.docx_parser = DOCXParser()
 
         # Initialize LLM-based extractor (much more reliable than regex)
-        from agents_common import get_ollama_client
+        from cavia_common import get_ollama_client
         ollama_client = get_ollama_client()
         self.extractor = LLMCVExtractor(ollama_client)
 

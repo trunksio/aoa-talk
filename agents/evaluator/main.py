@@ -11,18 +11,19 @@ import instructor
 from openai import OpenAI
 
 from agents_common import (
+    AgentContext,
+    start_worker,
+    enqueue_to_next_agent,
+)
+from cavia_common import (
     AgentTask,
     AgentTaskResult,
     EvaluationResult,
-    StructuredEvaluation,  # New Instructor-compatible model
+    StructuredEvaluation,
     get_logger,
     setup_logging,
     get_ollama_client,
     get_db_manager,
-    # Explicit lifecycle management
-    AgentContext,
-    start_worker,
-    enqueue_to_next_agent,
 )
 
 from prompts import SYSTEM_PROMPT, build_evaluation_prompt

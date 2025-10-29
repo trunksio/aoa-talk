@@ -12,13 +12,14 @@ import time
 from typing import Any, Dict
 
 from agents_common import (
+    AgentContext,
+    start_worker,
+)
+from cavia_common import (
     AgentTask,
     AgentTaskResult,
     get_logger,
     setup_logging,
-    # Explicit lifecycle management
-    AgentContext,
-    start_worker,
 )
 
 # Setup logging

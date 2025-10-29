@@ -10,6 +10,10 @@ from typing import Any, Dict, List
 from io import BytesIO
 
 from agents_common import (
+    AgentContext,
+    start_worker,
+)
+from cavia_common import (
     AgentTask,
     AgentTaskResult,
     CVEvaluationReport,
@@ -18,9 +22,6 @@ from agents_common import (
     get_ollama_client,
     get_db_manager,
     get_minio_client,
-    # Explicit lifecycle management
-    AgentContext,
-    start_worker,
 )
 
 from report_templates import (

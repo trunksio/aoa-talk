@@ -13,7 +13,7 @@ import uuid
 import signal
 from typing import Any, Dict, Optional, Callable
 from threading import Thread
-from datetime import datetime
+from datetime import datetime, UTC
 
 from rq import Queue, Worker
 
@@ -104,18 +104,23 @@ def register_agent(ctx: AgentContext) -> bool:
 
         info = ctx.agent_info_provider()
 
-        # Call registry HTTP API - ChromaDB handles embeddings
-        registry_url = getattr(ctx.settings, 'registry_url', "http://registry:8001")
-        response = requests.post(
-            f"{registry_url}/register",
-            json={
+        # Call registry HTTP API using correct payload structure
+        registry_url = os.getenv("REGISTRY_URL", "http://registry:8001")
+        payload = {
+            "agent": {
                 "agent_id": ctx.agent_id,
-                "agent_type": ctx.agent_type,
                 "name": info["name"],
                 "description": info["description"],
+                "agent_type": ctx.agent_type,
                 "capabilities": info["capabilities"],
-                "queue_name": ctx.get_queue_name(),
-            },
+                "version": "1.0.0",
+                "status": "active",
+                "metadata": {"queue_name": ctx.get_queue_name()},
+            }
+        }
+        response = requests.post(
+            f"{registry_url}/register",
+            json=payload,
             timeout=30,
         )
 
@@ -356,7 +361,7 @@ def update_intent_context(task: AgentTaskV2, ctx: AgentContext, updates: Dict[st
     """
     task.intent.context.update(updates)
     task.intent.current_stage = f"{ctx.agent_type}_completed"
-    task.intent.updated_at = datetime.utcnow()
+    task.intent.updated_at = datetime.now(UTC)
 
 
 # Agent discovery and chaining functions
@@ -375,48 +380,55 @@ def discover_next_agent(ctx: AgentContext, capability_query: str) -> Optional[Di
     try:
         import requests
 
-        # Call registry's /search endpoint
-        registry_url = getattr(ctx.settings, 'registry_url', "http://registry:8001")
+        # Call registry's /search endpoint with correct query format
+        registry_url = os.getenv("REGISTRY_URL", "http://registry:8001")
         response = requests.post(
             f"{registry_url}/search",
             json={
-                "capability_query": capability_query,
-                "limit": 5,  # Get multiple results to filter
+                "query": capability_query,
+                "mode": "semantic",
+                "limit": 5,
             },
             timeout=10,
         )
 
         response.raise_for_status()
-        agents = response.json()
+        data = response.json()
+        results = data.get("results", [])
 
-        if agents and len(agents) > 0:
-            # Filter out the calling agent to prevent self-enqueueing
-            current_agent_type = ctx.agent_type
-            filtered_agents = [a for a in agents if a['agent_type'] != current_agent_type]
-
-            if not filtered_agents:
-                ctx.logger.warning(
-                    "No suitable agent found (all matches were self)",
-                    capability=capability_query,
-                    current_agent=current_agent_type
-                )
-                return None
-
-            best_match = filtered_agents[0]
-            ctx.logger.info(
-                "Discovered next agent",
-                capability=capability_query,
-                agent_type=best_match['agent_type'],
-                queue=best_match['queue_name'],
-                similarity=best_match['similarity_score'],
-            )
-            return {
-                "agent_type": best_match['agent_type'],
-                "queue_name": best_match['queue_name']
-            }
-        else:
+        if not results:
             ctx.logger.warning("No agent found for capability", capability=capability_query)
             return None
+
+        # Filter out the calling agent to prevent self-enqueueing
+        current_agent_type = ctx.agent_type
+        filtered_agents = [res for res in results if res.get("agent_type") != current_agent_type]
+
+        if not filtered_agents:
+            ctx.logger.warning(
+                "No suitable agent found (all matches were self)",
+                capability=capability_query,
+                current_agent=current_agent_type
+            )
+            return None
+
+        # Get top result
+        top = filtered_agents[0]
+        agent_type = top.get("agent_type")
+        queue_name = (top.get("metadata") or {}).get("queue_name", f"queue-{agent_type}")
+
+        ctx.logger.info(
+            "Discovered next agent",
+            capability=capability_query,
+            agent_type=agent_type,
+            queue=queue_name,
+            similarity=top.get("similarity_score"),
+        )
+
+        return {
+            "agent_type": agent_type,
+            "queue_name": queue_name
+        }
 
     except Exception as e:
         ctx.logger.error("Failed to discover next agent", capability=capability_query, error=str(e))
