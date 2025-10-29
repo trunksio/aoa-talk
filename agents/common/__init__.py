@@ -10,21 +10,12 @@ This package provides:
 
 from .manifest import AgentManifest, Capability, Agent, Embedding
 from .register_on_start import register_agent_from_manifest
-from .lifecycle import (
-    AgentContext,
-    register_agent,
-    start_heartbeat,
-    stop_heartbeat,
-    setup_signal_handlers,
-    start_worker,
-    validate_intent,
-    check_intent_drift,
-    update_intent_context,
-    discover_next_agent,
-    enqueue_to_next_agent,
-    register_agent_context,
-    process_agent_task,
-)
+
+# Re-export all shared utilities from cavia_common
+# This allows agents to import everything from agents_common
+import sys
+sys.path.insert(0, "/shared")
+
 
 __version__ = "1.0.0"
 
