@@ -9,9 +9,6 @@ import tempfile
 from typing import Any, Dict
 from pathlib import Path
 
-# Add agents_common package to path
-sys.path.insert(0, "/agents_common")
-
 from agents_common import (
     AgentTask,
     AgentTaskV2,

@@ -1,59 +1,13 @@
 """
 Agents Common Package
 ----------------------
-Shared utilities and models for Agentic Units (AUs).
+Shared utilities for Agentic Units (AUs).
 
-This package consolidates all common utilities needed by agents,
-including lifecycle management, models, and clients.
+This package provides:
+- Lifecycle management for agents
+- Manifest and registration utilities
+- Re-exported models and clients from cavia_common for agent convenience
 """
-
-import sys
-
-# Add shared path for cavia_common dependencies
-sys.path.insert(0, "/shared")
-
-# Import from cavia_common (shared models and clients only)
-from cavia_common import (
-    # Configuration
-    Settings,
-    get_settings,
-    # Logging
-    setup_logging,
-    get_logger,
-    # Models
-    AgentRegistration,
-    AgentStatus,
-    JobStatus,
-    CVJob,
-    EvaluationResult,
-    ParsedCV,
-    EvaluationCriterion,
-    CVEvaluationReport,
-    AgentTask,
-    AgentTaskV2,
-    AgentTaskResult,
-    IntentConstraint,
-    IntentSuccessCriteria,
-    StructuredIntent,
-    IntentValidation,
-    ReasoningStep,
-    SubCriterion,
-    StructuredEvaluation,
-    # Clients
-    DatabaseManager,
-    get_db_manager,
-    get_redis_connection,
-    MinIOClient,
-    get_minio_client,
-    OllamaClient,
-    get_ollama_client,
-    # Workflows
-    WorkflowTemplate,
-    get_workflow_template,
-    list_workflow_templates,
-    get_workflows_by_category,
-    WORKFLOW_TEMPLATES,
-)
 
 # Import lifecycle management from local module
 from .lifecycle import (
@@ -72,55 +26,37 @@ from .lifecycle import (
     process_agent_task,
 )
 
-# Manifest and registration utilities (agents_common specific)
+# Manifest and registration utilities
 from .manifest import AgentManifest, Capability, Agent, Embedding
 from .register_on_start import register_agent_from_manifest
+
+# Re-export commonly used models and clients from cavia_common for agent convenience
+from cavia_common import (
+    # Configuration and logging
+    get_settings,
+    setup_logging,
+    get_logger,
+    # Models
+    AgentTask,
+    AgentTaskV2,
+    AgentTaskResult,
+    AgentStatus,
+    ParsedCV,
+    EvaluationResult,
+    StructuredEvaluation,
+    CVEvaluationReport,
+    IntentValidation,
+    # Clients
+    get_db_manager,
+    get_redis_connection,
+    get_minio_client,
+    get_ollama_client,
+)
 
 __version__ = "1.0.0"
 
 __all__ = [
-    # Manifest and registration (agents_common specific)
-    "AgentManifest",
-    "Capability",
-    "Agent",
-    "Embedding",
-    "register_agent_from_manifest",
-    # Configuration
-    "Settings",
-    "get_settings",
-    # Logging
-    "setup_logging",
-    "get_logger",
-    # Agent models
-    "AgentRegistration",
-    "AgentStatus",
-    "JobStatus",
-    "CVJob",
-    "EvaluationResult",
-    "ParsedCV",
-    "EvaluationCriterion",
-    "CVEvaluationReport",
-    "AgentTask",
-    "AgentTaskV2",
-    "AgentTaskResult",
-    # Intent models
-    "IntentConstraint",
-    "IntentSuccessCriteria",
-    "StructuredIntent",
-    "IntentValidation",
-    # Evaluation models
-    "ReasoningStep",
-    "SubCriterion",
-    "StructuredEvaluation",
-    # Clients
-    "DatabaseManager",
-    "get_db_manager",
-    "get_redis_connection",
-    "MinIOClient",
-    "get_minio_client",
-    "OllamaClient",
-    "get_ollama_client",
-    # Lifecycle management (NEW PATTERN)
+    # Lifecycle management
     "AgentContext",
     "register_agent",
     "start_heartbeat",
@@ -134,10 +70,27 @@ __all__ = [
     "enqueue_to_next_agent",
     "register_agent_context",
     "process_agent_task",
-    # Workflows
-    "WorkflowTemplate",
-    "get_workflow_template",
-    "list_workflow_templates",
-    "get_workflows_by_category",
-    "WORKFLOW_TEMPLATES",
+    # Manifest and registration
+    "AgentManifest",
+    "Capability",
+    "Agent",
+    "Embedding",
+    "register_agent_from_manifest",
+    # Re-exported from cavia_common (for convenience)
+    "get_settings",
+    "setup_logging",
+    "get_logger",
+    "AgentTask",
+    "AgentTaskV2",
+    "AgentTaskResult",
+    "AgentStatus",
+    "ParsedCV",
+    "EvaluationResult",
+    "StructuredEvaluation",
+    "CVEvaluationReport",
+    "IntentValidation",
+    "get_db_manager",
+    "get_redis_connection",
+    "get_minio_client",
+    "get_ollama_client",
 ]

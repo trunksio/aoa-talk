@@ -7,9 +7,6 @@ import time
 import json
 from typing import Any, Dict
 
-# Add agents_common package to path
-sys.path.insert(0, "/agents_common")
-
 import instructor
 from openai import OpenAI
 

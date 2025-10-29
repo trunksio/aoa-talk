@@ -17,8 +17,7 @@ from datetime import datetime
 
 from rq import Queue, Worker
 
-# Import from cavia_common (shared dependencies)
-sys.path.insert(0, "/shared")
+# Import from cavia_common (installed via pip)
 from cavia_common import (
     get_settings,
     get_logger,
@@ -106,7 +105,7 @@ def register_agent(ctx: AgentContext) -> bool:
         info = ctx.agent_info_provider()
 
         # Call registry HTTP API - ChromaDB handles embeddings
-        registry_url = getattr(ctx.settings, 'registry_url', "http://agent-registry:8000")
+        registry_url = getattr(ctx.settings, 'registry_url', "http://registry:8001")
         response = requests.post(
             f"{registry_url}/register",
             json={
@@ -376,10 +375,10 @@ def discover_next_agent(ctx: AgentContext, capability_query: str) -> Optional[Di
     try:
         import requests
 
-        # Call registry's /discover endpoint
-        registry_url = getattr(ctx.settings, 'registry_url', "http://agent-registry:8000")
+        # Call registry's /search endpoint
+        registry_url = getattr(ctx.settings, 'registry_url', "http://registry:8001")
         response = requests.post(
-            f"{registry_url}/discover",
+            f"{registry_url}/search",
             json={
                 "capability_query": capability_query,
                 "limit": 5,  # Get multiple results to filter

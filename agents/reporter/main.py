@@ -9,9 +9,6 @@ import re
 from typing import Any, Dict, List
 from io import BytesIO
 
-# Add agents_common package to path
-sys.path.insert(0, "/agents_common")
-
 from agents_common import (
     AgentTask,
     AgentTaskResult,

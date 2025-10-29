@@ -11,9 +11,6 @@ import sys
 import time
 from typing import Any, Dict
 
-# Add agents_common package to path
-sys.path.insert(0, "/agents_common")
-
 from agents_common import (
     AgentTask,
     AgentTaskResult,

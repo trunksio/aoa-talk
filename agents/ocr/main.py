@@ -13,9 +13,6 @@ import tempfile
 from typing import Any, Dict
 from pathlib import Path
 
-# Add agents_common package to path
-sys.path.insert(0, "/agents_common")
-
 from agents_common import (
     AgentTask,
     AgentTaskResult,
@@ -75,7 +72,6 @@ class OCRAgent:
 
         # Initialize LLM-based extractor (reuse from parser agent pattern)
         # Import here to avoid circular dependencies
-        sys.path.insert(0, "/app/../parser")
         try:
             from parsers.llm_extractor import LLMCVExtractor
             from agents_common import get_ollama_client
