@@ -58,12 +58,11 @@ print(f"Found DeepSeek-OCR module under: {mod_path}")
 # --------------------------------------------------------------
 pkg_name = "deepseek_ocr"
 pkg = types.ModuleType(pkg_name)
-pkg.__path__ = [str(mod_path)]          # where modeling_deepseekocr.py lives
+pkg.__path__ = [str(mod_path)]  # where modeling_deepseekocr.py lives
 sys.modules[pkg_name] = pkg
 
 spec = importlib.util.spec_from_file_location(
-    f"{pkg_name}.modeling_deepseekocr",
-    mod_path / "modeling_deepseekocr.py"
+    f"{pkg_name}.modeling_deepseekocr", mod_path / "modeling_deepseekocr.py"
 )
 model_mod = importlib.util.module_from_spec(spec)
 sys.modules[f"{pkg_name}.modeling_deepseekocr"] = model_mod
@@ -72,7 +71,9 @@ spec.loader.exec_module(model_mod)
 # --------------------------------------------------------------
 # 4️⃣  Instantiate the model
 # --------------------------------------------------------------
-model_cls = getattr(model_mod, "DeepseekOCRModel", None) or getattr(model_mod, "DeepseekOCRForCausalLM", None)
+model_cls = getattr(model_mod, "DeepseekOCRModel", None) or getattr(
+    model_mod, "DeepseekOCRForCausalLM", None
+)
 if not model_cls:
     print("❌  Could not find DeepseekOCRModel class in loaded module.")
     sys.exit(1)

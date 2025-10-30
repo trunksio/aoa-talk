@@ -145,7 +145,9 @@ def _format_education(education: list) -> str:
         if edu.get("institution"):
             parts.append(f"   Institution: {edu['institution']}")
         if edu.get("start_date") or edu.get("end_date"):
-            date_range = f"{edu.get('start_date', '?')} - {edu.get('end_date', 'Present')}"
+            date_range = (
+                f"{edu.get('start_date', '?')} - {edu.get('end_date', 'Present')}"
+            )
             parts.append(f"   Dates: {date_range}")
         if edu.get("gpa"):
             parts.append(f"   GPA: {edu['gpa']}")
@@ -169,10 +171,12 @@ def _format_experience(experience: list) -> str:
         if exp.get("location"):
             parts.append(f"   Location: {exp['location']}")
         if exp.get("start_date") or exp.get("end_date"):
-            date_range = f"{exp.get('start_date', '?')} - {exp.get('end_date', 'Present')}"
+            date_range = (
+                f"{exp.get('start_date', '?')} - {exp.get('end_date', 'Present')}"
+            )
             parts.append(f"   Dates: {date_range}")
         if exp.get("description"):
-            desc = exp['description'][:200]  # Truncate long descriptions
+            desc = exp["description"][:200]  # Truncate long descriptions
             parts.append(f"   Description: {desc}...")
 
         entries.append("\n".join(parts))

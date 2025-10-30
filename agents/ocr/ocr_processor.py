@@ -23,7 +23,9 @@ class DeepSeekOCRProcessor:
     Optimized for NVIDIA DGX Spark (GB10 GPU with sm_121 compute capability).
     """
 
-    def __init__(self, model_name: str = "deepseek-ai/deepseek-ocr", device: str = "auto"):
+    def __init__(
+        self, model_name: str = "deepseek-ai/deepseek-ocr", device: str = "auto"
+    ):
         """
         Initialize DeepSeek-OCR processor.
 
@@ -61,8 +63,7 @@ class DeepSeekOCRProcessor:
 
             # Load processor (tokenizer + image processor)
             self.processor = AutoProcessor.from_pretrained(
-                self.model_name,
-                trust_remote_code=True
+                self.model_name, trust_remote_code=True
             )
 
             # Load model
@@ -87,9 +88,7 @@ class DeepSeekOCRProcessor:
             raise
 
     def process_image(
-        self,
-        image: Union[str, Path, Image.Image],
-        prompt_mode: str = "free_ocr"
+        self, image: Union[str, Path, Image.Image], prompt_mode: str = "free_ocr"
     ) -> str:
         """
         Extract text from a single image using DeepSeek-OCR.
@@ -125,11 +124,9 @@ class DeepSeekOCRProcessor:
             )
 
             # Prepare inputs
-            inputs = self.processor(
-                text=prompt,
-                images=img,
-                return_tensors="pt"
-            ).to(self.device)
+            inputs = self.processor(text=prompt, images=img, return_tensors="pt").to(
+                self.device
+            )
 
             # Generate OCR output
             with torch.no_grad():
@@ -141,10 +138,7 @@ class DeepSeekOCRProcessor:
                 )
 
             # Decode output
-            text = self.processor.batch_decode(
-                outputs,
-                skip_special_tokens=True
-            )[0]
+            text = self.processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
             # Remove the prompt from the output
             if prompt in text:
@@ -164,7 +158,7 @@ class DeepSeekOCRProcessor:
         self,
         pdf_path: Union[str, Path],
         prompt_mode: str = "free_ocr",
-        max_pages: Optional[int] = None
+        max_pages: Optional[int] = None,
     ) -> Tuple[str, int]:
         """
         Extract text from a PDF file by converting to images and running OCR.
@@ -225,9 +219,7 @@ class DeepSeekOCRProcessor:
             raise
 
     def process_pdf_fallback(
-        self,
-        pdf_path: Union[str, Path],
-        prompt_mode: str = "free_ocr"
+        self, pdf_path: Union[str, Path], prompt_mode: str = "free_ocr"
     ) -> Tuple[str, int]:
         """
         Fallback PDF processing using pdf2image.
@@ -285,6 +277,10 @@ class DeepSeekOCRProcessor:
             "device": self.device,
             "model_loaded": self._model_loaded,
             "cuda_available": torch.cuda.is_available(),
-            "cuda_device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
-            "cuda_device_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+            "cuda_device_count": (
+                torch.cuda.device_count() if torch.cuda.is_available() else 0
+            ),
+            "cuda_device_name": (
+                torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
+            ),
         }

@@ -34,7 +34,7 @@ class DOCXParser:
                 text = para.text.strip()
                 if text:
                     # Preserve some formatting info
-                    if para.style.name.startswith('Heading'):
+                    if para.style.name.startswith("Heading"):
                         text_parts.append(f"\n\n## {text} ##\n")
                     else:
                         text_parts.append(text)

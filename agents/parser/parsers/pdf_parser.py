@@ -59,7 +59,9 @@ class PDFParser:
                                 text_parts.append(f"[Table {table_idx + 1}]\n")
                                 for row in table:
                                     if row:
-                                        text_parts.append(" | ".join(str(cell or "") for cell in row))
+                                        text_parts.append(
+                                            " | ".join(str(cell or "") for cell in row)
+                                        )
                                         text_parts.append("\n")
                                 text_parts.append("\n")
 
@@ -76,7 +78,7 @@ class PDFParser:
     def _parse_with_pypdf(self, file_path: str) -> Optional[str]:
         """Parse PDF using pypdf as fallback"""
         try:
-            with open(file_path, 'rb') as file:
+            with open(file_path, "rb") as file:
                 reader = pypdf.PdfReader(file)
                 text_parts = []
 
@@ -102,7 +104,7 @@ class PDFParser:
         metadata = {}
 
         try:
-            with open(file_path, 'rb') as file:
+            with open(file_path, "rb") as file:
                 reader = pypdf.PdfReader(file)
                 info = reader.metadata
 

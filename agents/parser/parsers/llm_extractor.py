@@ -50,14 +50,8 @@ class LLMCVExtractor:
             # Call Ollama with structured prompt
             response = self.ollama.chat(
                 messages=[
-                    {
-                        "role": "system",
-                        "content": self._get_system_prompt()
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "system", "content": self._get_system_prompt()},
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.1,  # Low temperature for factual extraction
             )
@@ -168,12 +162,12 @@ Extract only factual information present in the CV. Return ONLY the JSON, no add
         Handles cases where LLM wraps JSON in markdown code blocks.
         """
         # Try to extract JSON from markdown code blocks
-        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response, re.DOTALL)
+        json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response, re.DOTALL)
         if json_match:
             json_str = json_match.group(1)
         else:
             # Try to find raw JSON
-            json_match = re.search(r'(\{.*\})', response, re.DOTALL)
+            json_match = re.search(r"(\{.*\})", response, re.DOTALL)
             if json_match:
                 json_str = json_match.group(1)
             else:
@@ -189,7 +183,13 @@ Extract only factual information present in the CV. Return ONLY the JSON, no add
 
     def _validate_extracted_data(self, data: Dict[str, Any]):
         """Validate that extracted data has expected structure"""
-        required_keys = ["contact_info", "education", "experience", "skills", "certifications"]
+        required_keys = [
+            "contact_info",
+            "education",
+            "experience",
+            "skills",
+            "certifications",
+        ]
 
         for key in required_keys:
             if key not in data:
