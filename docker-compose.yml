@@ -33,6 +33,23 @@ services:
       - agedata:/var/lib/postgresql/data
 
   # ---------------------------------------------------------------------------
+  # Redis for RQ (task queue)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: aoa_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
   # Registry Service (Discovery + Embeddings)
   # ---------------------------------------------------------------------------
   registry:
@@ -77,9 +94,12 @@ services:
     depends_on:
       registry:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       MANIFEST_PATH: /app/manifest.yaml
       REGISTRY_URL: http://registry:8001
+      REDIS_URL: redis://redis:6379/0
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
     deploy:
@@ -108,9 +128,12 @@ services:
     depends_on:
       registry:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       MANIFEST_PATH: /app/manifest.yaml
       REGISTRY_URL: http://registry:8001
+      REDIS_URL: redis://redis:6379/0
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
     deploy:
@@ -183,3 +206,4 @@ services:
 volumes:
   pgdata:
   agedata:
+  redisdata:
