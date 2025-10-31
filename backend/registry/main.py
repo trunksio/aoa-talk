@@ -24,6 +24,7 @@ from .database import (
     CapabilityModel,
     EmbeddingModel,
 )
+from .embeddings import get_embedding_service
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -120,6 +121,7 @@ async def register_agent(
             db.flush()  # Flush to get the ID
 
         # Add capabilities
+        capabilities_for_embedding = []
         for cap in agent_data.capabilities:
             capability_model = CapabilityModel(
                 agent_id=agent_model.id,
@@ -132,13 +134,35 @@ async def register_agent(
             )
             db.add(capability_model)
 
-        # Add embedding if provided
+            # Collect capability info for embedding generation
+            capabilities_for_embedding.append({
+                "name": cap.name,
+                "description": cap.description,
+            })
+
+        # Generate and add embedding
+        # Use provided embedding if available, otherwise generate automatically
         if agent_data.embedding:
             embedding_model = EmbeddingModel(
                 agent_id=agent_model.id,
                 vector=agent_data.embedding.vector,
                 model=agent_data.embedding.model,
                 dimension=agent_data.embedding.dimension,
+            )
+            db.add(embedding_model)
+        else:
+            # Automatically generate embedding from agent description and capabilities
+            embedding_service = get_embedding_service()
+            vector = embedding_service.embed_agent_description(
+                agent_data.name,
+                agent_data.description,
+                capabilities_for_embedding,
+            )
+            embedding_model = EmbeddingModel(
+                agent_id=agent_model.id,
+                vector=vector,
+                model=embedding_service.model_name,
+                dimension=embedding_service.dimension,
             )
             db.add(embedding_model)
 
@@ -205,17 +229,32 @@ async def _semantic_search(db: Session, query: SearchQuery) -> List[SearchResult
     """
     Perform semantic search using pgvector.
 
-    This is a simplified implementation. In production, you would:
-    1. Generate embedding for the query text using the same model
-    2. Use pgvector's similarity search to find closest matches
+    Generates embedding for query text and finds agents with similar embeddings
+    using cosine similarity.
     """
-    # For now, return all active agents (since we don't have embedding generation)
-    # In production, you'd compute query embedding and use vector similarity
+    # Generate embedding for the query
+    embedding_service = get_embedding_service()
+    query_vector = embedding_service.embed_text(query.query)
 
-    agents = db.query(AgentModel).filter_by(status="active").limit(query.limit).all()
+    # Get all active agents with their embeddings
+    agents = db.query(AgentModel).filter_by(status="active").all()
 
-    results = []
+    # Compute similarity scores and sort results
+    results_with_scores = []
+
     for agent in agents:
+        # Load agent's embedding
+        embedding = db.query(EmbeddingModel).filter_by(agent_id=agent.id).first()
+
+        if not embedding:
+            # Skip agents without embeddings
+            continue
+
+        # Compute similarity
+        similarity = embedding_service.compute_similarity(
+            query_vector, embedding.vector
+        )
+
         # Load capabilities
         capabilities = db.query(CapabilityModel).filter_by(agent_id=agent.id).all()
 
@@ -231,17 +270,24 @@ async def _semantic_search(db: Session, query: SearchQuery) -> List[SearchResult
             for cap in capabilities
         ]
 
-        results.append(
-            SearchResult(
-                agent_id=agent.agent_id,
-                name=agent.name,
-                description=agent.description,
-                agent_type=agent.agent_type,
-                capabilities=cap_list,
-                similarity_score=0.85,  # Placeholder score
-                metadata=agent.agent_metadata or {},
+        results_with_scores.append(
+            (
+                similarity,
+                SearchResult(
+                    agent_id=agent.agent_id,
+                    name=agent.name,
+                    description=agent.description,
+                    agent_type=agent.agent_type,
+                    capabilities=cap_list,
+                    similarity_score=similarity,
+                    metadata=agent.agent_metadata or {},
+                ),
             )
         )
+
+    # Sort by similarity score (descending) and limit results
+    results_with_scores.sort(key=lambda x: x[0], reverse=True)
+    results = [result for _, result in results_with_scores[: query.limit]]
 
     return results
 
