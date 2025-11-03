@@ -76,7 +76,7 @@ services:
               count: all
               capabilities: [gpu]
     volumes:
-      - ~/aoa/hf_cache:/root/.cache/huggingface
+      - huggingface_cache:/root/.cache/huggingface
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
@@ -110,7 +110,7 @@ services:
               count: all
               capabilities: [gpu]
     volumes:
-      - ~/aoa/hf_cache:/root/.cache/huggingface     # ✅ shared model cache
+      - huggingface_cache:/root/.cache/huggingface     # ✅ shared model cache
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://registry:8001/health || exit 1"]
       interval: 60s
@@ -144,7 +144,7 @@ services:
               count: all
               capabilities: [gpu]
     volumes:
-      - ~/aoa/hf_cache:/root/.cache/huggingface     # ✅ shared model cache
+      - huggingface_cache:/root/.cache/huggingface     # ✅ shared model cache
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://registry:8001/health || exit 1"]
       interval: 60s
@@ -175,7 +175,7 @@ services:
               count: all
               capabilities: [gpu]
     volumes:
-      - ~/aoa/hf_cache:/root/.cache/huggingface     # ✅ ready for future LLM use
+      - huggingface_cache:/root/.cache/huggingface     # ✅ ready for future LLM use
 
   # ---------------------------------------------------------------------------
   # Orchestrator (Plan → Execute)
@@ -201,9 +201,10 @@ services:
               count: all
               capabilities: [gpu]
     volumes:
-      - ~/aoa/hf_cache:/root/.cache/huggingface
+      - huggingface_cache:/root/.cache/huggingface
 
 volumes:
   pgdata:
   agedata:
   redisdata:
+  huggingface_cache:

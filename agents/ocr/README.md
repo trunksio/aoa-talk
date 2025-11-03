@@ -259,6 +259,46 @@ docker compose logs -f ocr-agent
 docker compose logs ocr-agent | grep ERROR
 ```
 
+## Model Cache Management
+
+The DeepSeek-OCR model (6.6GB) is automatically cached to avoid re-downloading on every build.
+
+### Cache Location
+
+The HuggingFace cache is stored in a Docker named volume:
+- **Volume name**: `huggingface_cache`
+- **Mount path**: `/root/.cache/huggingface`
+- **Shared across**: All AOA services (registry, ocr, parser, planner, orchestrator)
+
+### Cache Behavior
+
+- **First build**: Downloads models to the volume (one-time operation)
+- **Subsequent builds**: Reuses cached models (fast startup)
+- **Persistence**: Cache survives container removal and rebuilds
+
+### Cache Cleanup
+
+To clear the model cache and force a fresh download:
+
+```bash
+# Remove the cache volume
+docker compose down
+docker volume rm aoa-talk_huggingface_cache
+
+# Rebuild (will download models again)
+docker compose up --build
+```
+
+To inspect cache contents:
+
+```bash
+# View cache size
+docker run --rm -v aoa-talk_huggingface_cache:/cache alpine du -sh /cache
+
+# List cached models
+docker run --rm -v aoa-talk_huggingface_cache:/cache alpine ls -lh /cache/hub
+```
+
 ## Troubleshooting
 
 ### Model Download Issues
